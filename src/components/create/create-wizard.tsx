@@ -1,0 +1,180 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
+import { StepMaterials } from './step-materials'
+import { StepParams, type EpisodeParams } from './step-params'
+import { StepConfirm } from './step-confirm'
+import type { MaterialItem } from './material-uploader'
+
+const STEPS = ['输入素材', '设置参数', '确认生成']
+
+export function CreateWizard() {
+  const router = useRouter()
+  const [step, setStep] = useState(0)
+  const [submitting, setSubmitting] = useState(false)
+
+  // Step 1 数据
+  const [topic, setTopic] = useState('')
+  const [materials, setMaterials] = useState<MaterialItem[]>([])
+
+  // Step 2 数据
+  const [params, setParams] = useState<EpisodeParams>({
+    duration_min: 10,
+    style: 'casual',
+    roles_count: 2,
+    voice_ids: [],
+    bgm: 'light',
+    skip_confirmation: false,
+  })
+
+  // Step 3 数据
+  const [estimate, setEstimate] = useState<{
+    llm_cost: number
+    tts_cost: number
+    mixing_cost: number
+    total: number
+    breakdown: { estimated_script_chars: number; estimated_llm_tokens: number; estimated_tts_chars: number }
+  } | null>(null)
+  const [balance, setBalance] = useState(0)
+  const [estimateLoading, setEstimateLoading] = useState(false)
+
+  // 进入 Step 3 时获取费用预估
+  useEffect(() => {
+    if (step !== 2) return
+    setEstimateLoading(true)
+
+    // 文件类素材用 size/3 粗估字符数（中文 UTF-8 约 3 字节/字）
+    const materialChars = materials.reduce((sum, m) => {
+      if (m.text) return sum + m.text.length
+      if (m.size) return sum + Math.round(m.size / 3)
+      return sum
+    }, 0)
+
+    fetch('/api/billing/estimate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        duration_min: params.duration_min,
+        roles_count: params.roles_count,
+        material_char_count: materialChars,
+      }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        const { balance: bal, sufficient, ...costData } = data
+        setEstimate(costData)
+        setBalance(bal ?? 0)
+      })
+      .catch(console.error)
+      .finally(() => setEstimateLoading(false))
+  }, [step, params.duration_min, params.roles_count, materials])
+
+  const canNext = () => {
+    if (step === 0) return topic.trim().length > 0
+    if (step === 1) return params.voice_ids.length === params.roles_count
+    return true
+  }
+
+  const handleSubmit = async () => {
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/episodes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic,
+          materials: materials.map(m => ({
+            type: m.type,
+            url: m.url || m.path || '',
+            text: m.text,
+          })),
+          params: {
+            duration_min: params.duration_min,
+            style: params.style,
+            roles_count: params.roles_count,
+            voice_ids: params.voice_ids,
+            bgm: params.bgm,
+            skip_confirmation: params.skip_confirmation,
+          },
+          estimated_cost: estimate?.total || null,
+        }),
+      })
+
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+
+      router.push(`/episodes/${data.id}`)
+      router.refresh()
+    } catch (err) {
+      alert((err as Error).message)
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-2xl space-y-8">
+      {/* 步骤指示器 */}
+      <div className="flex items-center justify-center gap-2">
+        {STEPS.map((label, i) => (
+          <div key={label} className="flex items-center gap-2">
+            <div className={cn(
+              'flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium',
+              i === step && 'bg-primary text-primary-foreground',
+              i < step && 'bg-primary/20 text-primary',
+              i > step && 'bg-muted text-muted-foreground'
+            )}>
+              {i < step ? '✓' : i + 1}
+            </div>
+            <span className={cn('text-sm', i === step && 'font-medium')}>{label}</span>
+            {i < STEPS.length - 1 && <div className="mx-2 h-px w-8 bg-border" />}
+          </div>
+        ))}
+      </div>
+
+      {/* 步骤内容 */}
+      {step === 0 && (
+        <StepMaterials
+          topic={topic}
+          onTopicChange={setTopic}
+          materials={materials}
+          onMaterialsChange={setMaterials}
+        />
+      )}
+      {step === 1 && (
+        <StepParams params={params} onChange={setParams} />
+      )}
+      {step === 2 && (
+        <StepConfirm
+          topic={topic}
+          materials={materials}
+          params={params}
+          estimate={estimate}
+          balance={balance}
+          estimateLoading={estimateLoading}
+        />
+      )}
+
+      {/* 导航按钮 */}
+      <div className="flex justify-between">
+        <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={step === 0}>
+          上一步
+        </Button>
+        {step < 2 ? (
+          <Button onClick={() => setStep(s => s + 1)} disabled={!canNext()}>
+            下一步
+          </Button>
+        ) : (
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting || !estimate || balance < (estimate?.total || 0)}
+          >
+            {submitting ? '创建中...' : `确认生成（$${estimate?.total?.toFixed(4) || '...'}）`}
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
