@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       project_id: body.project_id || null,
       topic: body.topic,
-      params: body.params,
+      params: { ...body.params, duration_min: durationMin, roles_count: rolesCount },
       materials: body.materials,
       title: body.title || null,
       estimated_cost: estimatedCost || null,

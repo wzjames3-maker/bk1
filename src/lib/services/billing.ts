@@ -84,6 +84,7 @@ export async function refund(
 
 /**
  * 充值到账（Stripe Webhook 调用）
+ * 先插入交易记录（利用唯一约束做幂等门卫），成功后再调整余额
  */
 export async function topup(
   userId: string,
@@ -92,13 +93,19 @@ export async function topup(
 ): Promise<void> {
   const admin = createAdminClient()
 
-  await admin.rpc('adjust_balance', { uid: userId, delta: amount })
-
-  await admin.from('transactions').insert({
+  const { error } = await admin.from('transactions').insert({
     user_id: userId,
     type: 'topup',
     amount: amount,
     stripe_payment_id: stripePaymentId,
     description: `充值 $${amount.toFixed(2)}`,
   })
+
+  if (error) {
+    // 唯一约束冲突 → 已处理过，直接返回
+    if (error.code === '23505') return
+    throw new Error(`topup insert failed: ${error.message}`)
+  }
+
+  await admin.rpc('adjust_balance', { uid: userId, delta: amount })
 }
