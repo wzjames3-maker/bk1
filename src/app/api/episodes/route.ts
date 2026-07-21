@@ -43,5 +43,22 @@ export async function POST(request: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // 触发 pipeline 第一步（parsing）
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  fetch(`${baseUrl}/api/pipeline/advance`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-pipeline-secret': process.env.PIPELINE_INTERNAL_SECRET!,
+    },
+    body: JSON.stringify({
+      episodeId: data.id,
+      userId: user.id,
+      step: 'parsing',
+      attempt: 1,
+    }),
+  }).catch(() => {})  // fire-and-forget，不阻塞响应
+
   return NextResponse.json(data, { status: 201 })
 }
