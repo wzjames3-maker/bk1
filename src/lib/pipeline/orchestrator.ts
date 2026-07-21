@@ -3,6 +3,7 @@ import { canTransition, getNextStep, getStepStatus } from './state-machine'
 import { logStepStart, logStepDone, logStepFailed } from './step-logger'
 import { MAX_STEPS, type PipelineStep } from '@/types/pipeline'
 import type { EpisodeStatus } from '@/types/database'
+import { settle, refund } from '@/lib/services/billing'
 
 type StepExecutor = (episodeId: string, userId: string) => Promise<void>
 const stepExecutors: Partial<Record<PipelineStep, StepExecutor>> = {}
@@ -76,6 +77,16 @@ export async function advancePipeline(
         .from('episodes')
         .update({ status: 'completed', completed_at: new Date().toISOString() })
         .eq('id', episodeId)
+
+      // Pipeline 完成 → 结算
+      const { data: ep } = await supabase
+        .from('episodes')
+        .select('estimated_cost, actual_cost, user_id')
+        .eq('id', episodeId)
+        .single()
+      if (ep && ep.estimated_cost) {
+        await settle(ep.user_id, episodeId, ep.estimated_cost, ep.actual_cost || ep.estimated_cost)
+      }
     }
 
     return { success: true }
@@ -94,6 +105,16 @@ export async function advancePipeline(
       .from('episodes')
       .update({ status: 'failed', failed_at_step: currentStep })
       .eq('id', episodeId)
+
+    // Pipeline 失败 → 退还预扣
+    const { data: failedEp } = await supabase
+      .from('episodes')
+      .select('estimated_cost, user_id')
+      .eq('id', episodeId)
+      .single()
+    if (failedEp && failedEp.estimated_cost) {
+      await refund(failedEp.user_id, episodeId, failedEp.estimated_cost)
+    }
 
     return { success: false, error: errorMsg }
   }
