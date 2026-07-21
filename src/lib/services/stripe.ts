@@ -1,6 +1,20 @@
 import Stripe from 'stripe'
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+let _stripe: Stripe | null = null
+
+export function getStripe(): Stripe {
+  if (!_stripe) {
+    _stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
+  }
+  return _stripe
+}
+
+// 兼容已有 import { stripe } 的写法
+export const stripe = new Proxy({} as Stripe, {
+  get(_, prop) {
+    return Reflect.get(getStripe(), prop)
+  },
+})
 
 export const TOPUP_TIERS = [
   { id: 'tier_5', amount: 500, label: '$5' },
