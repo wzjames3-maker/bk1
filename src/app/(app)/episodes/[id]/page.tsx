@@ -1,15 +1,40 @@
-export default async function EpisodeDetailPage({
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import { EpisodeDetail } from '@/components/episode/episode-detail'
+import type { Episode, EpisodeStep } from '@/types/database'
+
+export const dynamic = 'force-dynamic'
+
+export default async function EpisodePage({
   params,
 }: {
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) redirect('/login')
+
+  const { data: episode } = await supabase
+    .from('episodes')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
+
+  if (!episode) redirect('/dashboard')
+
+  const { data: steps } = await supabase
+    .from('episode_steps')
+    .select('*')
+    .eq('episode_id', id)
+    .order('started_at', { ascending: true })
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-bold">剧集详情</h1>
-      <p className="text-muted-foreground">Episode ID: {id}</p>
-      <p className="text-muted-foreground">（完整功能在 M4 实现）</p>
-    </div>
+    <EpisodeDetail
+      initialEpisode={episode as Episode}
+      initialSteps={(steps || []) as EpisodeStep[]}
+    />
   )
 }
