@@ -58,3 +58,12 @@ Task 4: complete (commits 287b9fd..52b24a3)
 Task 5: complete (build pass, tsc 0 errors, fix: 741bf30 lazy-init stripe)
 
 M5 ALL TASKS COMPLETE.
+
+--- M6 ---
+Task 1: complete (commits 1d7d68a..18b7b1d)
+Task 2: complete (commits 18b7b1d..58f5f7f)
+Task 3: complete (commits 58f5f7f..9957d9b)
+Task 4: complete (commits 9957d9b..e11e5d4)
+Task 5: complete (build pass, tsc 0 errors, landing page SSG)
+
+M6 ALL TASKS COMPLETE. MVP ALL 6 MILESTONES DONE.
