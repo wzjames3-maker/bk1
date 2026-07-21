@@ -98,3 +98,24 @@ export interface Transaction {
   description: string | null
   created_at: string
 }
+
+// === 创建剧集输入 ===
+export interface CreateEpisodeInput {
+  topic: string
+  materials: Array<{
+    type: 'file' | 'url' | 'text'
+    url: string
+    text?: string
+  }>
+  params: {
+    duration_min: number
+    style: string
+    roles_count: number
+    voice_ids: string[]
+    bgm: string
+    skip_confirmation: boolean
+  }
+  project_id?: string
+  title?: string
+  estimated_cost?: number
+}

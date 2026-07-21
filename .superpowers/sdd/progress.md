@@ -15,3 +15,8 @@ Task 10: complete (commits 9dd5bc3..aa84c52, review clean)
 Fix: a6bb60d - missing radix deps for form.tsx
 
 M1 ALL TASKS COMPLETE. tsc --noEmit: 0 errors.
+
+--- M2 ---
+Task 1: complete (commits ebe3dee..bf31617)
+Task 2: complete (commits bf31617..99e6e81)
+Task 3: complete (commits 99e6e81..9eaf0a1)
