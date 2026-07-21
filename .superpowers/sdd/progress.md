@@ -49,3 +49,12 @@ Task 6: complete (commits 605788e..80b8513)
 Task 7: complete (build pass, tsc 0 errors)
 
 M4 ALL TASKS COMPLETE.
+
+--- M5 ---
+Task 1: complete (commits cc00a99..bf3fec1)
+Task 2: complete (commits bf3fec1..9feb66d)
+Task 3: complete (commits 9feb66d..287b9fd)
+Task 4: complete (commits 287b9fd..52b24a3)
+Task 5: complete (build pass, tsc 0 errors, fix: 741bf30 lazy-init stripe)
+
+M5 ALL TASKS COMPLETE.
