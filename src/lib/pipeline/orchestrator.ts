@@ -60,18 +60,18 @@ export async function advancePipeline(
       return { success: true }
     }
 
-    // 触发下一步
+    // 触发下一步（fire-and-forget，等待当前请求释放锁后下一步再获取）
     const nextStep = getNextStep(currentStep)
     if (nextStep) {
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      await fetch(`${baseUrl}/api/pipeline/advance`, {
+      fetch(`${baseUrl}/api/pipeline/advance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-pipeline-secret': process.env.PIPELINE_INTERNAL_SECRET!,
         },
         body: JSON.stringify({ episodeId, userId, step: nextStep, attempt: 1 }),
-      })
+      }).catch(() => {})
     } else {
       await supabase
         .from('episodes')

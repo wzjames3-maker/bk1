@@ -27,7 +27,7 @@ export default async function BillingPage() {
     .limit(50)
 
   const { data: usage } = await supabase
-    .from('usage_records')
+    .from('usage_logs')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })

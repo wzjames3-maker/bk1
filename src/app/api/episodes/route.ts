@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { preCharge, refund } from '@/lib/services/billing'
+import { estimateCost } from '@/lib/services/cost'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
@@ -29,7 +30,18 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const estimatedCost = body.estimated_cost || 0
+
+  // 服务端独立计算费用，不信任客户端传入的 estimated_cost
+  const params = body.params || {}
+  const materialCharCount = (body.materials || []).reduce(
+    (sum: number, m: { text?: string }) => sum + (m.text?.length || 0), 0
+  )
+  const costEstimate = estimateCost({
+    duration_min: params.duration_min || 10,
+    roles_count: params.roles_count || 2,
+    material_char_count: materialCharCount,
+  })
+  const estimatedCost = costEstimate.total
 
   // 先创建 episode
   const { data, error } = await supabase

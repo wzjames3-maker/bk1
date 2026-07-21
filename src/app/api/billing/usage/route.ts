@@ -7,7 +7,7 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
-  const limit = parseInt(searchParams.get('limit') || '50')
+  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50') || 50, 1), 200)
 
   // 交易记录
   const { data: transactions } = await supabase
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
 
   // 用量明细
   const { data: usage } = await supabase
-    .from('usage_records')
+    .from('usage_logs')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })

@@ -162,3 +162,20 @@ $$ language plpgsql;
 create trigger projects_updated_at
   before update on projects
   for each row execute procedure update_updated_at();
+
+-- 余额原子操作函数
+create or replace function adjust_balance(uid uuid, delta numeric)
+returns numeric
+language sql
+security definer
+as $$
+  update profiles set balance = balance + delta where id = uid returning balance;
+$$;
+
+create or replace function deduct_if_sufficient(uid uuid, amount numeric)
+returns numeric
+language sql
+security definer
+as $$
+  update profiles set balance = balance - amount where id = uid and balance >= amount returning balance;
+$$;

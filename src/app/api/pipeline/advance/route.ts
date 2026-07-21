@@ -47,15 +47,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Pipeline already running' }, { status: 409 })
   }
 
-  const result = await advancePipeline(episodeId, userId, step, attempt || 1)
+  try {
+    const result = await advancePipeline(episodeId, userId, step, attempt || 1)
 
-  if (!result.success) {
-    // 特殊处理：等待确认不是错误
-    if (result.error === 'WAITING_FOR_CONFIRMATION') {
-      return NextResponse.json({ status: 'waiting_for_confirmation' })
+    if (!result.success) {
+      // 特殊处理：等待确认不是错误
+      if (result.error === 'WAITING_FOR_CONFIRMATION') {
+        return NextResponse.json({ status: 'waiting_for_confirmation' })
+      }
+      return NextResponse.json({ error: result.error }, { status: 500 })
     }
-    return NextResponse.json({ error: result.error }, { status: 500 })
-  }
 
-  return NextResponse.json({ status: 'advanced', step })
+    return NextResponse.json({ status: 'advanced', step })
+  } finally {
+    // 释放锁，允许下一步获取
+    await redis.del(lockKey)
+  }
 }

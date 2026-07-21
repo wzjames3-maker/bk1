@@ -30,7 +30,7 @@ export async function POST(
 
   // 触发 tts_processing 步骤
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  await fetch(`${baseUrl}/api/pipeline/advance`, {
+  const res = await fetch(`${baseUrl}/api/pipeline/advance`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -43,6 +43,14 @@ export async function POST(
       attempt: 1,
     }),
   })
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return NextResponse.json(
+      { error: err.error || 'Pipeline trigger failed' },
+      { status: res.status }
+    )
+  }
 
   return NextResponse.json({ status: 'confirmed', next: 'tts_processing' })
 }
