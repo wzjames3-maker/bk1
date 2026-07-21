@@ -14,6 +14,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@radix-ui/react-label": "^2.1.12",
     "@radix-ui/react-slot": "^1.3.0",
+    "@sentry/nextjs": "^10.67.0",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.7",
     "@upstash/redis": "^1.38.0",
