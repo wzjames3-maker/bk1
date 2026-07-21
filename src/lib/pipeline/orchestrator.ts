@@ -17,7 +17,7 @@ export async function advancePipeline(
   userId: string,
   currentStep: PipelineStep,
   attempt: number = 1
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; nextStep?: PipelineStep | null }> {
   const supabase = createAdminClient()
 
   // 最大步数守卫
@@ -60,18 +60,10 @@ export async function advancePipeline(
       return { success: true }
     }
 
-    // 触发下一步（fire-and-forget，等待当前请求释放锁后下一步再获取）
+    // 返回下一步信息，由 route 层在释放锁后触发
     const nextStep = getNextStep(currentStep)
     if (nextStep) {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-      fetch(`${baseUrl}/api/pipeline/advance`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-pipeline-secret': process.env.PIPELINE_INTERNAL_SECRET!,
-        },
-        body: JSON.stringify({ episodeId, userId, step: nextStep, attempt: 1 }),
-      }).catch(() => {})
+      return { success: true, nextStep }
     } else {
       await supabase
         .from('episodes')
@@ -89,7 +81,7 @@ export async function advancePipeline(
       }
     }
 
-    return { success: true }
+    return { success: true, nextStep: null }
   } catch (err) {
     const errorMsg = (err as Error).message
 

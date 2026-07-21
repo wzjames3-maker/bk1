@@ -33,11 +33,15 @@ export async function POST(request: NextRequest) {
     if (userId && amountTotal > 0 && paymentIntent) {
       // 幂等性检查：确认该 payment_intent 未被处理过
       const admin = createAdminClient()
-      const { data: existing } = await admin
+      const { data: existing, error: checkErr } = await admin
         .from('transactions')
         .select('id')
         .eq('stripe_payment_id', paymentIntent)
         .maybeSingle()
+
+      if (checkErr) {
+        return NextResponse.json({ error: 'Idempotency check failed' }, { status: 500 })
+      }
 
       if (!existing) {
         await topup(userId, amountTotal, paymentIntent)

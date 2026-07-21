@@ -36,9 +36,11 @@ export async function POST(request: NextRequest) {
   const materialCharCount = (body.materials || []).reduce(
     (sum: number, m: { text?: string }) => sum + (m.text?.length || 0), 0
   )
+  const durationMin = Math.min(Math.max(Number(params.duration_min) || 10, 1), 60)
+  const rolesCount = Math.min(Math.max(Number(params.roles_count) || 2, 1), 10)
   const costEstimate = estimateCost({
-    duration_min: params.duration_min || 10,
-    roles_count: params.roles_count || 2,
+    duration_min: durationMin,
+    roles_count: rolesCount,
     material_char_count: materialCharCount,
   })
   const estimatedCost = costEstimate.total

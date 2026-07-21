@@ -47,20 +47,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Pipeline already running' }, { status: 409 })
   }
 
+  let result: { success: boolean; error?: string; nextStep?: PipelineStep | null }
+
   try {
-    const result = await advancePipeline(episodeId, userId, step, attempt || 1)
-
-    if (!result.success) {
-      // 特殊处理：等待确认不是错误
-      if (result.error === 'WAITING_FOR_CONFIRMATION') {
-        return NextResponse.json({ status: 'waiting_for_confirmation' })
-      }
-      return NextResponse.json({ error: result.error }, { status: 500 })
-    }
-
-    return NextResponse.json({ status: 'advanced', step })
+    result = await advancePipeline(episodeId, userId, step, attempt || 1)
   } finally {
     // 释放锁，允许下一步获取
     await redis.del(lockKey)
   }
+
+  // 锁已释放，安全触发下一步
+  if (result.success && result.nextStep) {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+    fetch(`${baseUrl}/api/pipeline/advance`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-pipeline-secret': process.env.PIPELINE_INTERNAL_SECRET!,
+      },
+      body: JSON.stringify({ episodeId, userId, step: result.nextStep, attempt: 1 }),
+    }).catch(() => {})
+  }
+
+  if (!result.success) {
+    if (result.error === 'WAITING_FOR_CONFIRMATION') {
+      return NextResponse.json({ status: 'waiting_for_confirmation' })
+    }
+    return NextResponse.json({ error: result.error }, { status: 500 })
+  }
+
+  return NextResponse.json({ status: 'advanced', step })
 }
