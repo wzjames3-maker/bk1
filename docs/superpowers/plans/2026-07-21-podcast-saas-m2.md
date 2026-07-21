@@ -6,7 +6,7 @@
 
 **架构：** 前端三步向导组件 → Upload API（Supabase Storage）→ 素材解析服务（纯文本提取）→ 费用预估 API → Episodes POST 创建任务。
 
-**技术栈：** Next.js 15, shadcn/ui, Supabase Storage, pdf-parse, cheerio, mammoth, Upstash Redis
+**技术栈：** Next.js 16, shadcn/ui, Supabase Storage, pdf-parse, cheerio, mammoth, Upstash Redis
 
 **前置依赖：** M1 已完成（项目骨架 + Auth + DB Schema + API 骨架）
 
@@ -199,6 +199,20 @@ git commit -m "feat: add storage buckets and file upload API"
 ```bash
 npm install pdf-parse cheerio mammoth
 npm install -D @types/pdf-parse
+```
+
+- [ ] **步骤 1.5：配置 next.config.ts 允许 pdf-parse 服务端外部化**
+
+在 `next.config.ts` 中添加 `serverExternalPackages`：
+
+```typescript
+import type { NextConfig } from 'next'
+
+const nextConfig: NextConfig = {
+  serverExternalPackages: ['pdf-parse'],
+}
+
+export default nextConfig
 ```
 
 - [ ] **步骤 2：创建解析服务 `src/lib/services/parser.ts`**
@@ -682,7 +696,13 @@ git commit -m "feat: add material uploader and step 1 components"
 **文件：**
 - 创建：`src/components/create/voice-picker.tsx`, `src/components/create/step-params.tsx`
 
-- [ ] **步骤 1：创建音色选择组件 `src/components/create/voice-picker.tsx`**
+- [ ] **步骤 1：安装 Switch 和 Select 组件（如未有）**
+
+```bash
+npx shadcn@latest add switch select --yes
+```
+
+- [ ] **步骤 2：创建音色选择组件 `src/components/create/voice-picker.tsx`**
 
 ```typescript
 'use client'
@@ -761,7 +781,7 @@ export function VoicePicker({ selected, onChange, maxCount }: Props) {
 }
 ```
 
-- [ ] **步骤 2：创建 Step 2 组件 `src/components/create/step-params.tsx`**
+- [ ] **步骤 3：创建 Step 2 组件 `src/components/create/step-params.tsx`**
 
 ```typescript
 'use client'
@@ -885,12 +905,6 @@ export function StepParams({ params, onChange }: Props) {
     </div>
   )
 }
-```
-
-- [ ] **步骤 3：安装 Switch 组件（如未有）**
-
-```bash
-npx shadcn@latest add switch select
 ```
 
 - [ ] **步骤 4：Commit**
@@ -1091,7 +1105,13 @@ export function CreateWizard() {
   })
 
   // Step 3 数据
-  const [estimate, setEstimate] = useState<any>(null)
+  const [estimate, setEstimate] = useState<{
+    llm_cost: number
+    tts_cost: number
+    mixing_cost: number
+    total: number
+    breakdown: { estimated_script_chars: number; estimated_llm_tokens: number; estimated_tts_chars: number }
+  } | null>(null)
   const [balance, setBalance] = useState(0)
   const [estimateLoading, setEstimateLoading] = useState(false)
 
@@ -1118,8 +1138,9 @@ export function CreateWizard() {
     })
       .then(res => res.json())
       .then(data => {
-        setEstimate(data)
-        setBalance(data.balance)
+        const { balance: bal, sufficient, ...costData } = data
+        setEstimate(costData)
+        setBalance(bal ?? 0)
       })
       .catch(console.error)
       .finally(() => setEstimateLoading(false))
