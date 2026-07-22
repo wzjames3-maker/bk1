@@ -31,6 +31,8 @@ const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secon
   failed: { label: '失败', variant: 'destructive' },
 }
 
+const REWRITE_LIMIT = 3
+
 export function EpisodeDetail({ initialEpisode, initialSteps }: Props) {
   return (
     <EpisodeDetailInner
@@ -45,18 +47,21 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
   const router = useRouter()
   const { episode, steps } = useEpisodeRealtime(initialEpisode.id, initialEpisode, initialSteps)
   const [editing, setEditing] = useState(false)
+  const [rewriting, setRewriting] = useState(false)
+  const [scriptOverride, setScriptOverride] = useState<ScriptSegment[] | null>(null)
+  const [rewriteCountLocal, setRewriteCountLocal] = useState<number | null>(null)
 
   if (!episode) return null
 
-  const script: ScriptSegment[] = typeof episode.script === 'string'
+  const baseScript: ScriptSegment[] = typeof episode.script === 'string'
     ? JSON.parse(episode.script)
     : episode.script || []
+  const script = scriptOverride ?? baseScript
 
   const rawChapters = typeof episode.chapters === 'string'
     ? JSON.parse(episode.chapters)
     : episode.chapters || []
 
-  // 后处理后 chapters 为 {time, title}[]；TTS 中转数据不再写入该字段
   const chapters: Array<{ time: string; title: string }> =
     Array.isArray(rawChapters) &&
     rawChapters.length > 0 &&
@@ -71,6 +76,9 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
   const canEdit = episode.status === 'script_ready'
   const canConfirm = episode.status === 'script_ready'
   const canRetry = episode.status === 'failed'
+  const rewriteCount =
+    rewriteCountLocal ?? Number(episode.params?.rewrite_count || 0)
+  const rewriteDisabled = rewriting || rewriteCount >= REWRITE_LIMIT
 
   const handleConfirm = async () => {
     await fetch(`/api/episodes/${episode.id}/confirm`, { method: 'POST' })
@@ -83,18 +91,44 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
   }
 
   const handleSaveScript = async (newScript: ScriptSegment[]) => {
-    await fetch(`/api/episodes/${episode.id}`, {
+    const res = await fetch(`/api/episodes/${episode.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ script: newScript }),
     })
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || '保存失败')
+      return
+    }
+    setScriptOverride(newScript)
     setEditing(false)
     router.refresh()
   }
 
+  const handlePolish = async () => {
+    setRewriting(true)
+    try {
+      const res = await fetch(`/api/episodes/${episode.id}/rewrite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'polish' }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '润色失败')
+      setScriptOverride(data.script)
+      setRewriteCountLocal(data.rewrite_count)
+      setEditing(true)
+      router.refresh()
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setRewriting(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
-      {/* 头部 */}
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-bold">{episode.title || episode.topic}</h1>
@@ -105,17 +139,27 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
             </span>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 justify-end">
+          {canEdit && (
+            <Button
+              variant="outline"
+              onClick={handlePolish}
+              disabled={rewriteDisabled}
+            >
+              {rewriting
+                ? '润色中...'
+                : `AI 整段润色（${rewriteCount}/${REWRITE_LIMIT}）`}
+            </Button>
+          )}
           {canConfirm && (
-            <Button onClick={handleConfirm}>✅ 确认脚本，开始合成</Button>
+            <Button onClick={handleConfirm}>确认脚本，开始合成</Button>
           )}
           {canRetry && (
-            <Button variant="outline" onClick={handleRetry}>🔄 重试</Button>
+            <Button variant="outline" onClick={handleRetry}>重试</Button>
           )}
         </div>
       </div>
 
-      {/* 播放器 */}
       <AudioPlayer
         audioUrl={episode.audio_url}
         previewUrl={episode.preview_url}
@@ -123,7 +167,6 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
         status={episode.status}
       />
 
-      {/* Tabs */}
       <Tabs defaultValue="progress">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="progress">进度</TabsTrigger>
@@ -143,15 +186,22 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
           {canEdit && !editing && (
             <div className="mb-4">
               <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                ✏️ 编辑脚本
+                编辑脚本
               </Button>
             </div>
           )}
           {editing ? (
             <ScriptEditor
+              key={`edit-${rewriteCount}-${script.length}`}
               script={script}
               onSave={handleSaveScript}
               onCancel={() => setEditing(false)}
+              episodeId={episode.id}
+              rewriteDisabled={rewriteDisabled}
+              onScriptReplaced={(next, count) => {
+                setScriptOverride(next)
+                if (typeof count === 'number') setRewriteCountLocal(count)
+              }}
             />
           ) : (
             <ScriptViewer script={script} />

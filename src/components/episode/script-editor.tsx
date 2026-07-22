@@ -11,11 +11,22 @@ interface Props {
   script: ScriptSegment[]
   onSave: (script: ScriptSegment[]) => Promise<void>
   onCancel: () => void
+  episodeId?: string
+  onScriptReplaced?: (script: ScriptSegment[], rewriteCount?: number) => void
+  rewriteDisabled?: boolean
 }
 
-export function ScriptEditor({ script, onSave, onCancel }: Props) {
+export function ScriptEditor({
+  script,
+  onSave,
+  onCancel,
+  episodeId,
+  onScriptReplaced,
+  rewriteDisabled,
+}: Props) {
   const [segments, setSegments] = useState<ScriptSegment[]>(script)
   const [saving, setSaving] = useState(false)
+  const [rewritingIndex, setRewritingIndex] = useState<number | null>(null)
 
   const updateSegment = (index: number, field: keyof ScriptSegment, value: string | number) => {
     setSegments(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s))
@@ -26,7 +37,12 @@ export function ScriptEditor({ script, onSave, onCancel }: Props) {
   }
 
   const addSegment = (afterIndex: number) => {
-    const newSeg: ScriptSegment = { role: segments[afterIndex]?.role || '主持人', text: '', emotion: '中性', pause_ms: 500 }
+    const newSeg: ScriptSegment = {
+      role: segments[afterIndex]?.role || '主持人',
+      text: '',
+      emotion: '中性',
+      pause_ms: 500,
+    }
     setSegments(prev => {
       const next = [...prev]
       next.splice(afterIndex + 1, 0, newSeg)
@@ -40,6 +56,26 @@ export function ScriptEditor({ script, onSave, onCancel }: Props) {
       await onSave(segments)
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handleRewriteSegment = async (index: number) => {
+    if (!episodeId) return
+    setRewritingIndex(index)
+    try {
+      const res = await fetch(`/api/episodes/${episodeId}/rewrite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'segment', segmentIndex: index }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '重写失败')
+      setSegments(data.script)
+      onScriptReplaced?.(data.script, data.rewrite_count)
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setRewritingIndex(null)
     }
   }
 
@@ -70,6 +106,16 @@ export function ScriptEditor({ script, onSave, onCancel }: Props) {
                 onChange={(e) => updateSegment(i, 'emotion', e.target.value)}
               />
               <div className="flex-1" />
+              {episodeId && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={rewriteDisabled || rewritingIndex === i}
+                  onClick={() => handleRewriteSegment(i)}
+                >
+                  {rewritingIndex === i ? '重写中...' : '重写此句'}
+                </Button>
+              )}
               <Button variant="ghost" size="sm" onClick={() => addSegment(i)}>+ 插入</Button>
               <Button variant="ghost" size="sm" className="text-destructive" onClick={() => removeSegment(i)}>删除</Button>
             </div>
