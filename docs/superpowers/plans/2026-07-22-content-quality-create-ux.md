@@ -31,9 +31,10 @@
 | `src/components/episode/show-notes.tsx` | 改：结构化展示 + 复制 |
 | `src/components/create/create-wizard.tsx` | 改：默认 1 人、project_id 提交 |
 | `src/components/create/step-params.tsx` | 改：项目 Select、音色文案 |
-| `src/types/database.ts` | 改：params / ShowNotes 相关类型（可选最小扩展） |
-| `scripts/assert-style-presets.mjs` | 新建：纯逻辑自检（可删可留） |
+| `src/types/database.ts` | 改：params 扩展 rewrite_count 等 |
 | `NEXT_STEPS.md` | 改：本轮完成后更新状态 |
+
+**自检方式：** 仅用 `npx tsx -e "..."` 内联 assert，**不**新增 `scripts/assert-*.mjs`。
 
 ---
 
@@ -42,7 +43,6 @@
 **文件：**
 - 创建：`src/lib/services/style-presets.ts`
 - 修改：`src/lib/services/deepseek.ts`
-- 自检：`scripts/assert-style-presets.mjs`
 
 - [ ] **步骤 1：创建 `src/lib/services/style-presets.ts`**
 
@@ -113,29 +113,20 @@ ${preset.rules}
 }
 ```
 
-- [ ] **步骤 2：写自检脚本 `scripts/assert-style-presets.mjs`**
-
-用动态 import 较麻烦（TS）。改为同目录导出后，用 node 内联重复关键逻辑的最小 assert，或：
+- [ ] **步骤 2：运行内联自检（tsx）**
 
 ```bash
-# 若已有 tsx：
 npx --yes tsx -e "
 import { normalizeStyle, targetCharCount, buildStyleSystemAppendix, FORBIDDEN_PHRASES } from './src/lib/services/style-presets.ts'
 if (normalizeStyle('nope') !== 'casual') throw new Error('normalize')
 if (targetCharCount(10, 'news') >= targetCharCount(10, 'story')) throw new Error('factor')
 if (!buildStyleSystemAppendix('deep').includes('深度')) throw new Error('appendix')
 if (!FORBIDDEN_PHRASES.includes('赋能')) throw new Error('banned')
-console.log('style-presets ok')
+console.log('style-presets ok', targetCharCount(10,'casual'))
 "
 ```
 
-- [ ] **步骤 3：运行自检（先应在文件存在后通过）**
-
-```bash
-npx --yes tsx -e "import { normalizeStyle, targetCharCount } from './src/lib/services/style-presets.ts'; if (normalizeStyle('x')!=='casual') process.exit(1); console.log('ok', targetCharCount(10,'casual'))"
-```
-
-预期：打印 `ok 2500`
+预期：打印 `style-presets ok 2500`
 
 - [ ] **步骤 4：修改 `deepseek.ts` 的 generateScript**
 
@@ -188,9 +179,9 @@ git commit -m "feat: style presets drive podcast script generation"
 **文件：**
 - 修改：`src/lib/services/deepseek.ts`
 
-- [ ] **步骤 1：在 deepseek.ts 增加角色校验与 rewrite 导出**
+- [ ] **步骤 1：在 deepseek.ts 增加完整 rewrite 实现（可直接粘贴）**
 
-在 `extractSegments` 后增加：
+在 `extractSegments` 后追加以下完整代码（含 retry，无省略）：
 
 ```ts
 export function assertRolesSubset(
@@ -206,13 +197,54 @@ export function assertRolesSubset(
   if (segments.length === 0) throw new Error('Empty rewrite segments')
 }
 
-function normalizeSegment(raw: ScriptSegment): ScriptSegment {
+function normalizeSegment(raw: Partial<ScriptSegment> & { text?: string; role?: string }): ScriptSegment {
   return {
     role: String(raw.role || '').trim(),
     text: String(raw.text || '').trim(),
     emotion: String(raw.emotion || '中性'),
     pause_ms: Math.min(1000, Math.max(200, Number(raw.pause_ms) || 300)),
   }
+}
+
+async function chatJson(
+  system: string,
+  userPrompt: string,
+  maxTokens = 8192
+): Promise<{ content: string; tokenUsage: { prompt: number; completion: number } }> {
+  let lastError: Error | null = null
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await client.chat.completions.create({
+        model: DEEPSEEK_MODEL,
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        max_tokens: maxTokens,
+        response_format: { type: 'json_object' },
+      })
+      const message = response.choices[0]?.message as {
+        content?: string | null
+        reasoning_content?: string | null
+      } | undefined
+      const content = message?.content || message?.reasoning_content
+      if (!content) throw new Error('Empty response from DeepSeek')
+      return {
+        content,
+        tokenUsage: {
+          prompt: response.usage?.prompt_tokens || 0,
+          completion: response.usage?.completion_tokens || 0,
+        },
+      }
+    } catch (err) {
+      lastError = err as Error
+      if (attempt < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)))
+      }
+    }
+  }
+  throw new Error(`DeepSeek failed after ${MAX_RETRIES} attempts: ${lastError?.message}`)
 }
 
 export async function rewriteScript(input: {
@@ -235,11 +267,10 @@ export async function rewriteScript(input: {
 原脚本 JSON：
 ${JSON.stringify({ segments: input.segments }).slice(0, 12000)}`
 
-  // 与 generateScript 相同的 retry + extractSegments 循环
-  // 成功后：
+  const { content, tokenUsage } = await chatJson(system, userPrompt, 8192)
   const segments = extractSegments(content).map(normalizeSegment)
   assertRolesSubset(segments, roles)
-  return { segments, tokenUsage: { prompt: ..., completion: ... } }
+  return { segments, tokenUsage }
 }
 
 export async function rewriteSegment(input: {
@@ -250,7 +281,7 @@ export async function rewriteSegment(input: {
   instruction?: string
 }): Promise<{ segments: ScriptSegment[]; tokenUsage: { prompt: number; completion: number } }> {
   const { segmentIndex, segments } = input
-  if (segmentIndex < 0 || segmentIndex >= segments.length) {
+  if (!Number.isInteger(segmentIndex) || segmentIndex < 0 || segmentIndex >= segments.length) {
     throw new Error('segmentIndex out of range')
   }
   const instruction = input.instruction?.trim() || '改写得更自然口语，保持原意与角色'
@@ -266,11 +297,20 @@ export async function rewriteSegment(input: {
 ${JSON.stringify(segments.slice(Math.max(0, segmentIndex - 2), segmentIndex + 3))}
 待改写：${JSON.stringify(target)}`
 
-  // 调用 LLM，解析 text/emotion/pause_ms
-  // 合并：
+  const { content, tokenUsage } = await chatJson(system, userPrompt, 1024)
+  const cleaned = content.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+  const parsed = JSON.parse(cleaned) as { text?: string; emotion?: string; pause_ms?: number }
+  if (!parsed.text || !String(parsed.text).trim()) {
+    throw new Error('Empty segment rewrite text')
+  }
   const next = segments.map((s, i) =>
     i === segmentIndex
-      ? normalizeSegment({ ...s, text: parsed.text, emotion: parsed.emotion ?? s.emotion, pause_ms: parsed.pause_ms ?? s.pause_ms })
+      ? normalizeSegment({
+          ...s,
+          text: parsed.text,
+          emotion: parsed.emotion ?? s.emotion,
+          pause_ms: parsed.pause_ms ?? s.pause_ms,
+        })
       : s
   )
   assertRolesSubset(next, roles)
@@ -278,7 +318,7 @@ ${JSON.stringify(segments.slice(Math.max(0, segmentIndex - 2), segmentIndex + 3)
 }
 ```
 
-实现时完整复制 `generateScript` 的 retry/backoff 模式，不要省略错误处理。
+可将 `generateScript` 内部 LLM 调用也改为复用 `chatJson`（可选重构，非必须）。
 
 - [ ] **步骤 2：tsc**
 
@@ -332,6 +372,15 @@ export async function POST(
     return NextResponse.json({ error: 'Invalid mode' }, { status: 400 })
   }
 
+  // 所有输入校验必须在占锁之前完成
+  let segmentIndex: number | undefined
+  if (mode === 'segment') {
+    segmentIndex = Number(body.segmentIndex)
+    if (!Number.isInteger(segmentIndex)) {
+      return NextResponse.json({ error: 'segmentIndex required' }, { status: 400 })
+    }
+  }
+
   const { data: episode } = await supabase
     .from('episodes')
     .select('id, user_id, status, topic, script, params')
@@ -368,8 +417,11 @@ export async function POST(
   if (!script.length) {
     return NextResponse.json({ error: 'Empty script' }, { status: 400 })
   }
+  if (mode === 'segment' && (segmentIndex! < 0 || segmentIndex! >= script.length)) {
+    return NextResponse.json({ error: 'segmentIndex out of range' }, { status: 400 })
+  }
 
-  // 占锁
+  // 占锁（仅 script_ready；写回时 re-read params 再 merge，避免覆盖并发字段）
   await supabase
     .from('episodes')
     .update({
@@ -393,22 +445,25 @@ export async function POST(
         instruction,
       })
     } else {
-      const segmentIndex = Number(body.segmentIndex)
-      if (!Number.isInteger(segmentIndex)) {
-        return NextResponse.json({ error: 'segmentIndex required' }, { status: 400 })
-      }
       result = await rewriteSegment({
         topic: episode.topic,
         style,
         segments: script,
-        segmentIndex,
+        segmentIndex: segmentIndex!,
         instruction,
       })
     }
 
+    // re-read params 再 merge，降低覆盖 tts_segments 等字段的风险
+    const { data: fresh } = await supabase
+      .from('episodes')
+      .select('params')
+      .eq('id', id)
+      .single()
+    const freshParams = (fresh?.params || paramsObj) as Record<string, unknown>
     const nextCount = rewriteCount + 1
     const nextParams = {
-      ...paramsObj,
+      ...freshParams,
       rewrite_count: nextCount,
       rewrite_in_progress: false,
     }
@@ -440,10 +495,16 @@ export async function POST(
       rewrite_limit: REWRITE_LIMIT,
     })
   } catch (err) {
+    const { data: fresh } = await supabase
+      .from('episodes')
+      .select('params')
+      .eq('id', id)
+      .single()
+    const freshParams = (fresh?.params || paramsObj) as Record<string, unknown>
     await supabase
       .from('episodes')
       .update({
-        params: { ...paramsObj, rewrite_in_progress: false },
+        params: { ...freshParams, rewrite_in_progress: false },
       })
       .eq('id', id)
       .eq('user_id', user.id)
@@ -455,8 +516,6 @@ export async function POST(
   }
 }
 ```
-
-注意：segment 分支在占锁后若参数非法，须先清锁再 400（实现时把校验挪到占锁前）。
 
 - [ ] **步骤 2：PATCH 门禁 — `src/app/api/episodes/[id]/route.ts`**
 
@@ -517,13 +576,23 @@ git commit -m "feat: episode AI rewrite API with quota and script PATCH guard"
 - 修改：`src/components/episode/episode-detail.tsx`
 - 修改：`src/components/episode/script-editor.tsx`
 
-- [ ] **步骤 1：EpisodeDetail 增加整段润色**
+- [ ] **步骤 1：EpisodeDetail 增加整段润色 + 本地 script 覆盖**
 
-在 `script_ready` 操作区增加状态与按钮：
+**必须：** rewrite 成功后立刻用返回的 `data.script` 更新本地展示，不能只靠 `router.refresh()`（ScriptEditor 用 useState 初始化，props 变了也不会自动同步）。
 
 ```tsx
 const [rewriting, setRewriting] = useState(false)
-const rewriteCount = Number((episode.params as { rewrite_count?: number })?.rewrite_count || 0)
+const [scriptOverride, setScriptOverride] = useState<ScriptSegment[] | null>(null)
+const [rewriteCountLocal, setRewriteCountLocal] = useState<number | null>(null)
+
+const baseScript: ScriptSegment[] = typeof episode.script === 'string'
+  ? JSON.parse(episode.script)
+  : episode.script || []
+const script = scriptOverride ?? baseScript
+
+const rewriteCount = rewriteCountLocal ?? Number(
+  (episode.params as { rewrite_count?: number })?.rewrite_count || 0
+)
 const rewriteLimit = 3
 
 const handlePolish = async () => {
@@ -536,6 +605,8 @@ const handlePolish = async () => {
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || '润色失败')
+    setScriptOverride(data.script)
+    setRewriteCountLocal(data.rewrite_count)
     setEditing(true)
     router.refresh()
   } catch (e) {
@@ -546,9 +617,10 @@ const handlePolish = async () => {
 }
 ```
 
-按钮文案示例：`AI 整段润色（${rewriteCount}/${rewriteLimit}）`，`disabled={rewriting || rewriteCount >= rewriteLimit}`。
-
-注意：`episode.params` 类型若偏窄，用断言或扩展 `database.ts` 中 params 可选字段。
+- ScriptEditor / ScriptViewer 使用上面的 `script`（含 override）
+- 传入 `key={script.map(s => s.text).join('|').slice(0, 80)}` 或 `key={rewriteCount}` 强制 remount 亦可
+- `onScriptReplaced={(s) => { setScriptOverride(s); setRewriteCountLocal(c => (c ?? rewriteCount) + 1) }}`（segment 时以 API 返回的 rewrite_count 为准更稳）
+- 扩展 `database.ts` 中 `Episode.params`：`rewrite_count?: number; rewrite_in_progress?: boolean; voice_ids?: string[]; ...`
 
 - [ ] **步骤 2：ScriptEditor 支持单句重写**
 
@@ -914,9 +986,10 @@ UI：在时长/风格网格上方或旁侧加：
 
 - [ ] **步骤 4：Select 可点性**
 
-打开 `src/components/ui/select.tsx`，确认 `SelectContent` 使用 Portal 且无错误的 `pointer-events-none` 残留在内容层。若 `modal` 行为挡住按钮：为创建页 Select 设置合适的 `modal={false}`（若 base-ui/shadcn API 支持）或提高 Content z-index。
+当前 `select.tsx` 已是 Portal + `z-50`。**先手测**（打开风格 Select → 选「深度对谈」→ 点下一步）。
 
-手测：打开风格 Select → 点「深度对谈」→ 关闭后点「下一步」应可用。
+- 若真机 UI 正常、仅 Playwright 点不到：不要改共享 Select；验收记 workaround（Escape 关闭后点下一步 / 用键盘）。
+- 若真机也被挡：再查是否有全屏 overlay；必要时给创建页 `SelectContent` 提高 z-index 或检查父级 `overflow`。
 
 - [ ] **步骤 5：lint + tsc + commit**
 
@@ -991,7 +1064,7 @@ git commit -m "docs: update NEXT_STEPS after content quality UX delivery"
 
 ## 占位符扫描
 
-无 TODO/待定；代码块为可粘贴实现骨架，代理实现时补全 deepseek retry 循环与 segment 校验顺序（占锁前校验）。
+无 TODO/待定。任务 2 rewrite 为完整可粘贴实现；任务 3 校验在占锁前 + params re-read merge；任务 4 使用 scriptOverride；自检仅 tsx -e。
 
 ## 类型一致性
 
