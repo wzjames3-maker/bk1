@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { generatePostContent } from '@/lib/services/post-process'
 import { buildChaptersFromSegments, scaleChaptersToDuration } from '@/lib/services/audio-duration'
+import { serializeShowNotes } from '@/lib/services/show-notes'
 import type { ScriptSegment } from '@/types/database'
 import type { TtsSegmentResult } from '@/types/pipeline'
 
@@ -46,7 +47,7 @@ export async function executePostStep(episodeId: string): Promise<void> {
     chapters = scaleChaptersToDuration(chapters, params.audio_duration_ms)
   }
 
-  const { showNotes, coverSuggestion, chapterTitles } = await generatePostContent(
+  const { summary, highlights, coverSuggestion, chapterTitles } = await generatePostContent(
     episode.topic,
     script || [],
     totalDurationMs,
@@ -61,10 +62,16 @@ export async function executePostStep(episodeId: string): Promise<void> {
     }
   }
 
+  const show_notes = serializeShowNotes({
+    summary,
+    highlights,
+    chapters,
+  })
+
   await supabase
     .from('episodes')
     .update({
-      show_notes: showNotes,
+      show_notes,
       chapters: JSON.stringify(chapters),
       cover_url: coverSuggestion,
     })
