@@ -23,14 +23,26 @@ export function ShowNotes({ showNotes, coverSuggestion }: Props) {
 
   if (parsed && 'plain' in parsed) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">节目简介</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm whitespace-pre-wrap">{parsed.plain}</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">节目简介</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm whitespace-pre-wrap">{parsed.plain}</p>
+          </CardContent>
+        </Card>
+        {coverSuggestion && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">封面建议</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">{coverSuggestion}</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     )
   }
 

@@ -15,6 +15,7 @@
 - 结构化 Show Notes（简介 / 要点 / 章节表 + 复制；兼容旧纯文本）
 - 创建向导：默认 1 人、归属项目、音色未选满提示
 - PATCH script 仅 `script_ready`；创建 API `roles_count` 默认 1
+- 原子改稿/确认 RPC：执行 `supabase/rewrite-lock-setup.sql` 后启用并发保护
 
 最近相关提交（自新到旧示例）：
 
@@ -44,8 +45,9 @@ http://localhost:3000/create
 
 ### P0：马上做
 
-1. **安全轮换密钥**（聊天中曾暴露过 Supabase / MiMo / SenseNova / 密码）
-2. **人工验收本轮功能**（见下方清单）
+1. **执行改稿锁 SQL**：在 Supabase SQL Editor 执行 `supabase/rewrite-lock-setup.sql`
+2. **安全轮换密钥**（聊天中曾暴露过 Supabase / MiMo / SenseNova / 密码）
+3. **人工验收本轮功能**（见下方清单）
 
 ### P1：体验与内容
 

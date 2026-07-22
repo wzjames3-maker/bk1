@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { rewriteScript, rewriteSegment } from '@/lib/services/deepseek'
+import { hasRewriteLock } from '@/lib/services/episode-rewrite-guard'
 import type { ScriptSegment } from '@/types/database'
+import { randomUUID } from 'node:crypto'
 
 const REWRITE_LIMIT = 3
 const LLM_PER_1K = 0.002
@@ -31,11 +33,11 @@ export async function POST(
 
   const { data: episode } = await supabase
     .from('episodes')
-    .select('id, user_id, status, topic, script, params')
+    .select('id, status, topic, script, params')
     .eq('id', id)
     .single()
 
-  if (!episode || episode.user_id !== user.id) {
+  if (!episode) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   if (episode.status !== 'script_ready') {
@@ -45,15 +47,14 @@ export async function POST(
     )
   }
 
-  const paramsObj = (episode.params || {}) as Record<string, unknown>
-  const rewriteCount = Number(paramsObj.rewrite_count || 0)
-  if (rewriteCount >= REWRITE_LIMIT) {
+  const currentParams = (episode.params || {}) as Record<string, unknown>
+  if (Number(currentParams.rewrite_count || 0) >= REWRITE_LIMIT) {
     return NextResponse.json(
       { error: `本集 AI 改稿次数已用完（${REWRITE_LIMIT}/${REWRITE_LIMIT}），请手动编辑` },
       { status: 429 }
     )
   }
-  if (paramsObj.rewrite_in_progress === true) {
+  if (hasRewriteLock(currentParams)) {
     return NextResponse.json({ error: 'Rewrite already in progress' }, { status: 409 })
   }
 
@@ -69,16 +70,37 @@ export async function POST(
     return NextResponse.json({ error: 'segmentIndex out of range' }, { status: 400 })
   }
 
-  await supabase
-    .from('episodes')
-    .update({
-      params: { ...paramsObj, rewrite_in_progress: true },
+  const lockToken = randomUUID()
+  const { data: claimed, error: claimError } = await supabase.rpc('claim_episode_rewrite', {
+    p_episode_id: id,
+    p_lock_token: lockToken,
+  })
+  if (claimError) {
+    return NextResponse.json({ error: `Unable to claim rewrite: ${claimError.message}` }, { status: 500 })
+  }
+  if (!claimed) {
+    return NextResponse.json({ error: 'Rewrite is unavailable because this episode changed' }, { status: 409 })
+  }
+
+  const claimedEpisode = claimed as {
+    topic: string
+    script: ScriptSegment[] | string | null
+    params: Record<string, unknown>
+  }
+  const claimedScript: ScriptSegment[] = typeof claimedEpisode.script === 'string'
+    ? JSON.parse(claimedEpisode.script)
+    : claimedEpisode.script || []
+
+  if (!claimedScript.length || (mode === 'segment' && (segmentIndex! < 0 || segmentIndex! >= claimedScript.length))) {
+    await supabase.rpc('release_episode_rewrite_lock', {
+      p_episode_id: id,
+      p_lock_token: lockToken,
     })
-    .eq('id', id)
-    .eq('user_id', user.id)
+    return NextResponse.json({ error: 'Script changed before rewrite started' }, { status: 409 })
+  }
 
   try {
-    const style = String(paramsObj.style || 'casual')
+    const style = String(claimedEpisode.params?.style || 'casual')
     const instruction =
       typeof body.instruction === 'string' ? body.instruction : undefined
 
@@ -86,74 +108,43 @@ export async function POST(
 
     if (mode === 'polish') {
       result = await rewriteScript({
-        topic: episode.topic,
+        topic: claimedEpisode.topic,
         style,
-        segments: script,
+        segments: claimedScript,
         instruction,
       })
     } else {
       result = await rewriteSegment({
-        topic: episode.topic,
+        topic: claimedEpisode.topic,
         style,
-        segments: script,
+        segments: claimedScript,
         segmentIndex: segmentIndex!,
         instruction,
       })
     }
 
-    const { data: fresh } = await supabase
-      .from('episodes')
-      .select('params')
-      .eq('id', id)
-      .single()
-    const freshParams = (fresh?.params || paramsObj) as Record<string, unknown>
-    const nextCount = rewriteCount + 1
-    const nextParams = {
-      ...freshParams,
-      rewrite_count: nextCount,
-      rewrite_in_progress: false,
-    }
-
-    const { error: upErr } = await supabase
-      .from('episodes')
-      .update({
-        script: result.segments,
-        params: nextParams,
-      })
-      .eq('id', id)
-      .eq('user_id', user.id)
-
-    if (upErr) throw new Error(upErr.message)
-
     const totalTokens = result.tokenUsage.prompt + result.tokenUsage.completion
     const cost = (totalTokens / 1000) * LLM_PER_1K
-    await supabase.from('usage_logs').insert({
-      user_id: user.id,
-      episode_id: id,
-      type: 'llm_token',
-      quantity: totalTokens,
-      cost,
+    const { data: completed, error: completeError } = await supabase.rpc('complete_episode_rewrite', {
+      p_episode_id: id,
+      p_lock_token: lockToken,
+      p_script: result.segments,
+      p_token_quantity: totalTokens,
+      p_cost: cost,
     })
+    if (completeError) throw new Error(completeError.message)
+    if (!completed) throw new Error('Episode changed before rewrite could be saved')
 
     return NextResponse.json({
-      script: result.segments,
-      rewrite_count: nextCount,
+      script: completed.script,
+      rewrite_count: completed.rewrite_count,
       rewrite_limit: REWRITE_LIMIT,
     })
   } catch (err) {
-    const { data: fresh } = await supabase
-      .from('episodes')
-      .select('params')
-      .eq('id', id)
-      .single()
-    const freshParams = (fresh?.params || paramsObj) as Record<string, unknown>
-    await supabase
-      .from('episodes')
-      .update({
-        params: { ...freshParams, rewrite_in_progress: false },
-      })
-      .eq('id', id)
-      .eq('user_id', user.id)
+    await supabase.rpc('release_episode_rewrite_lock', {
+      p_episode_id: id,
+      p_lock_token: lockToken,
+    })
 
     return NextResponse.json(
       { error: (err as Error).message || 'Rewrite failed' },

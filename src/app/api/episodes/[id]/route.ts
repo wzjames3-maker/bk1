@@ -48,7 +48,7 @@ export async function PATCH(
   if (body.script !== undefined) {
     const { data: ep } = await supabase
       .from('episodes')
-      .select('status')
+      .select('status, params')
       .eq('id', id)
       .eq('user_id', user.id)
       .single()
@@ -58,6 +58,10 @@ export async function PATCH(
         { error: `Cannot edit script in status: ${ep.status}` },
         { status: 400 }
       )
+    }
+    const rewriteLock = (ep.params as Record<string, unknown> | null)?.rewrite_in_progress
+    if (rewriteLock === true || (typeof rewriteLock === 'string' && rewriteLock.length > 0 && rewriteLock !== 'false')) {
+      return NextResponse.json({ error: 'Cannot edit script while AI rewrite is running' }, { status: 409 })
     }
     allowedFields.script = body.script
   }

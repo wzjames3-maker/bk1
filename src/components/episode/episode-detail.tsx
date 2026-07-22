@@ -81,8 +81,16 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
   const rewriteDisabled = rewriting || rewriteCount >= REWRITE_LIMIT
 
   const handleConfirm = async () => {
-    await fetch(`/api/episodes/${episode.id}/confirm`, { method: 'POST' })
-    router.refresh()
+    try {
+      const res = await fetch(`/api/episodes/${episode.id}/confirm`, { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.error || '确认脚本失败')
+      }
+      router.refresh()
+    } catch (e) {
+      alert((e as Error).message)
+    }
   }
 
   const handleRetry = async () => {
@@ -152,7 +160,9 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
             </Button>
           )}
           {canConfirm && (
-            <Button onClick={handleConfirm}>确认脚本，开始合成</Button>
+            <Button onClick={handleConfirm} disabled={rewriting}>
+              确认脚本，开始合成
+            </Button>
           )}
           {canRetry && (
             <Button variant="outline" onClick={handleRetry}>重试</Button>

@@ -10,21 +10,17 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // 验证 episode 属于当前用户且状态为 script_ready
-  const { data: episode } = await supabase
-    .from('episodes')
-    .select('id, status, user_id')
-    .eq('id', id)
-    .single()
-
-  if (!episode || episode.user_id !== user.id) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  // 原子地把 script_ready 声明为 confirming，避免与 AI 改稿同时开始。
+  const { data: confirmed, error: confirmError } = await supabase.rpc('confirm_episode_for_tts', {
+    p_episode_id: id,
+  })
+  if (confirmError) {
+    return NextResponse.json({ error: `Unable to confirm episode: ${confirmError.message}` }, { status: 500 })
   }
-
-  if (episode.status !== 'script_ready') {
+  if (!confirmed) {
     return NextResponse.json(
-      { error: `Cannot confirm in status: ${episode.status}` },
-      { status: 400 }
+      { error: 'Cannot confirm while the episode is changing' },
+      { status: 409 }
     )
   }
 
@@ -45,6 +41,12 @@ export async function POST(
   })
 
   if (!res.ok) {
+    await supabase
+      .from('episodes')
+      .update({ status: 'script_ready' })
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .eq('status', 'confirming')
     const err = await res.json().catch(() => ({}))
     return NextResponse.json(
       { error: err.error || 'Pipeline trigger failed' },

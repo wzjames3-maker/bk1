@@ -27,16 +27,20 @@ export function ScriptEditor({
   const [segments, setSegments] = useState<ScriptSegment[]>(script)
   const [saving, setSaving] = useState(false)
   const [rewritingIndex, setRewritingIndex] = useState<number | null>(null)
+  const [isDirty, setIsDirty] = useState(false)
 
   const updateSegment = (index: number, field: keyof ScriptSegment, value: string | number) => {
+    setIsDirty(true)
     setSegments(prev => prev.map((s, i) => i === index ? { ...s, [field]: value } : s))
   }
 
   const removeSegment = (index: number) => {
+    setIsDirty(true)
     setSegments(prev => prev.filter((_, i) => i !== index))
   }
 
   const addSegment = (afterIndex: number) => {
+    setIsDirty(true)
     const newSeg: ScriptSegment = {
       role: segments[afterIndex]?.role || '主持人',
       text: '',
@@ -61,6 +65,10 @@ export function ScriptEditor({
 
   const handleRewriteSegment = async (index: number) => {
     if (!episodeId) return
+    if (isDirty) {
+      alert('请先保存脚本后再使用 AI 重写，避免覆盖未保存的修改')
+      return
+    }
     setRewritingIndex(index)
     try {
       const res = await fetch(`/api/episodes/${episodeId}/rewrite`, {
@@ -71,6 +79,7 @@ export function ScriptEditor({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '重写失败')
       setSegments(data.script)
+      setIsDirty(false)
       onScriptReplaced?.(data.script, data.rewrite_count)
     } catch (e) {
       alert((e as Error).message)
@@ -110,7 +119,7 @@ export function ScriptEditor({
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={rewriteDisabled || rewritingIndex === i}
+                  disabled={rewriteDisabled || rewritingIndex === i || isDirty}
                   onClick={() => handleRewriteSegment(i)}
                 >
                   {rewritingIndex === i ? '重写中...' : '重写此句'}

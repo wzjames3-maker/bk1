@@ -46,7 +46,17 @@ export async function POST(request: NextRequest) {
   const estimatedCost = costEstimate.total
 
   // 未指定项目时，自动归入用户默认项目（没有则创建）
-  let projectId: string | null = body.project_id || null
+  let projectId: string | null = typeof body.project_id === 'string' ? body.project_id : null
+  if (projectId) {
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('id', projectId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+    if (projectError) return NextResponse.json({ error: projectError.message }, { status: 500 })
+    if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+  }
   if (!projectId) {
     const { data: existingProject } = await supabase
       .from('projects')

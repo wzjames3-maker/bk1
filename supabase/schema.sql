@@ -180,6 +180,9 @@ as $$
   update profiles set balance = balance - amount where id = uid and balance >= amount returning balance;
 $$;
 
+-- 改稿/确认的原子状态变更；完整定义见 rewrite-lock-setup.sql，供已有项目补充执行。
+-- 新项目初始化时同样需要执行该文件。
+
 -- Webhook 幂等性唯一索引
 create unique index idx_transactions_stripe_payment_id
   on transactions (stripe_payment_id) where stripe_payment_id is not null;
