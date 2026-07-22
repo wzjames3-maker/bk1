@@ -43,6 +43,12 @@ export interface Episode {
     duration_min: number
     style: string
     roles_count: number
+    voice_ids?: string[]
+    bgm?: string
+    skip_confirmation?: boolean
+    rewrite_count?: number
+    rewrite_in_progress?: boolean
+    [key: string]: unknown
   }
   materials: Array<{ type: string; url: string; extracted_text?: string }>
   script: ScriptSegment[] | null

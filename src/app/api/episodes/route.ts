@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     (sum: number, m: { text?: string }) => sum + (m.text?.length || 0), 0
   )
   const durationMin = Math.min(Math.max(Number(params.duration_min) || 10, 1), 60)
-  const rolesCount = Math.min(Math.max(Number(params.roles_count) || 2, 1), 10)
+  const rolesCount = Math.min(Math.max(Number(params.roles_count) || 1, 1), 10)
   const costEstimate = estimateCost({
     duration_min: durationMin,
     roles_count: rolesCount,

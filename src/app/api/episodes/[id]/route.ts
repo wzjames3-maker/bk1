@@ -45,7 +45,22 @@ export async function PATCH(
   // 只允许更新 title 和 script
   const allowedFields: Record<string, unknown> = {}
   if (body.title !== undefined) allowedFields.title = body.title
-  if (body.script !== undefined) allowedFields.script = body.script
+  if (body.script !== undefined) {
+    const { data: ep } = await supabase
+      .from('episodes')
+      .select('status')
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .single()
+    if (!ep) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (ep.status !== 'script_ready') {
+      return NextResponse.json(
+        { error: `Cannot edit script in status: ${ep.status}` },
+        { status: 400 }
+      )
+    }
+    allowedFields.script = body.script
+  }
 
   if (Object.keys(allowedFields).length === 0) {
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 })
