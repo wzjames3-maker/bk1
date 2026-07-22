@@ -7,17 +7,18 @@ export async function executeMixStep(episodeId: string, userId: string): Promise
 
   const { data: episode } = await supabase
     .from('episodes')
-    .select('params')
+    .select('params, tts_segments')
     .eq('id', episodeId)
     .single()
 
   if (!episode) throw new Error('Episode not found')
 
-  const params = episode.params as {
-    bgm?: string
-    tts_segments?: TtsSegmentResult[]
-  }
-  const segments = params.tts_segments || []
+  const params = episode.params as { bgm?: string }
+  // 优先读独立列，向后兼容旧数据 params.tts_segments
+  const segments: TtsSegmentResult[] =
+    (episode.tts_segments as TtsSegmentResult[] | null) ||
+    (params as Record<string, unknown>).tts_segments as TtsSegmentResult[] ||
+    []
   if (!segments.length) throw new Error('No TTS segments found')
 
   const bgmType = params.bgm || 'none'

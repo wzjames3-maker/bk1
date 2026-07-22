@@ -79,15 +79,10 @@ export async function executeTtsStep(episodeId: string, userId: string): Promise
     await supabase.from('episodes').update({ preview_url: publicUrl }).eq('id', episodeId)
   }
 
-  // 保存段落结果到 params.tts_segments（供 mix/post 读取）
-  // chapters 字段留给后处理章节时间轴，避免互相覆盖
-  const nextParams = {
-    ...(params as Record<string, unknown>),
-    tts_segments: results,
-  }
+  // 保存段落结果到独立 tts_segments 列（供 mix/post 读取）
   await supabase
     .from('episodes')
-    .update({ params: nextParams })
+    .update({ tts_segments: results })
     .eq('id', episodeId)
 
   // 记录 TTS 用量

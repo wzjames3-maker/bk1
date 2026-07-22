@@ -56,6 +56,7 @@ create table episodes (
   chapters jsonb,
   cover_url text,
   preview_url text,
+  tts_segments jsonb,
   estimated_cost decimal(10,4),
   actual_cost decimal(10,4),
   created_at timestamptz not null default now(),

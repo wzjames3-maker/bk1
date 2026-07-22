@@ -10,7 +10,7 @@ export async function executePostStep(episodeId: string): Promise<void> {
 
   const { data: episode } = await supabase
     .from('episodes')
-    .select('topic, script, params')
+    .select('topic, script, params, tts_segments')
     .eq('id', episodeId)
     .single()
 
@@ -21,10 +21,13 @@ export async function executePostStep(episodeId: string): Promise<void> {
     : episode.script
 
   const params = (episode.params || {}) as {
-    tts_segments?: TtsSegmentResult[]
     audio_duration_ms?: number
   }
-  const segments = params.tts_segments || []
+  // 优先读独立列，向后兼容旧数据 params.tts_segments
+  const segments: TtsSegmentResult[] =
+    (episode.tts_segments as TtsSegmentResult[] | null) ||
+    (episode.params as Record<string, unknown>)?.tts_segments as TtsSegmentResult[] ||
+    []
 
   const totalDurationMs =
     params.audio_duration_ms ||
