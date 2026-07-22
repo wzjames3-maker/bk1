@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(
   request: NextRequest,
@@ -11,22 +10,15 @@ export async function POST(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // 原子地把 script_ready → confirming，避免与 AI 改稿同时开始。
-  // 使用 admin client 做条件更新（等效于 confirm_episode_for_tts RPC）
-  const admin = createAdminClient()
-  const { data: updated, error: confirmError } = await admin
-    .from('episodes')
-    .update({ status: 'confirming' })
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .eq('status', 'script_ready')
-    .select('id')
-    .maybeSingle()
-
+  // 原子地把 script_ready → confirming，同时检查 rewrite_in_progress
+  // 依赖 supabase/rewrite-lock-setup.sql 中的 confirm_episode_for_tts 函数
+  const { data: confirmed, error: confirmError } = await supabase.rpc('confirm_episode_for_tts', {
+    p_episode_id: id,
+  })
   if (confirmError) {
     return NextResponse.json({ error: `Unable to confirm episode: ${confirmError.message}` }, { status: 500 })
   }
-  if (!updated) {
+  if (!confirmed) {
     return NextResponse.json(
       { error: 'Cannot confirm while the episode is changing' },
       { status: 409 }

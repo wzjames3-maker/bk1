@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { createAdminClient } from '@/lib/supabase/admin'
 import { rewriteScript, rewriteSegment } from '@/lib/services/deepseek'
 import { hasRewriteLock } from '@/lib/services/episode-rewrite-guard'
 import type { ScriptSegment } from '@/types/database'
@@ -72,29 +71,20 @@ export async function POST(
   }
 
   const lockToken = randomUUID()
-  const admin = createAdminClient()
 
-  // 原子 claim：设置 rewrite_in_progress = lockToken
-  const { data: claimedRow, error: claimError } = await admin
-    .from('episodes')
-    .update({
-      params: { ...currentParams, rewrite_in_progress: lockToken },
-    })
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .eq('status', 'script_ready')
-    .select('id, topic, script, params')
-    .maybeSingle()
-
+  // 原子 claim：依赖 rewrite-lock-setup.sql 中的 claim_episode_rewrite 函数
+  const { data: claimed, error: claimError } = await supabase.rpc('claim_episode_rewrite', {
+    p_episode_id: id,
+    p_lock_token: lockToken,
+  })
   if (claimError) {
     return NextResponse.json({ error: `Unable to claim rewrite: ${claimError.message}` }, { status: 500 })
   }
-  if (!claimedRow) {
+  if (!claimed) {
     return NextResponse.json({ error: 'Rewrite is unavailable because this episode changed' }, { status: 409 })
   }
 
-  const claimedEpisode = claimedRow as {
-    id: string
+  const claimedEpisode = claimed as {
     topic: string
     script: ScriptSegment[] | string | null
     params: Record<string, unknown>
@@ -103,17 +93,11 @@ export async function POST(
     ? JSON.parse(claimedEpisode.script)
     : claimedEpisode.script || []
 
-  // Helper: release lock
-  const releaseLock = async () => {
-    await admin
-      .from('episodes')
-      .update({ params: { ...claimedEpisode.params, rewrite_in_progress: false } })
-      .eq('id', id)
-      .eq('user_id', user.id)
-  }
-
   if (!claimedScript.length || (mode === 'segment' && (segmentIndex! < 0 || segmentIndex! >= claimedScript.length))) {
-    await releaseLock()
+    await supabase.rpc('release_episode_rewrite_lock', {
+      p_episode_id: id,
+      p_lock_token: lockToken,
+    })
     return NextResponse.json({ error: 'Script changed before rewrite started' }, { status: 409 })
   }
 
@@ -143,40 +127,28 @@ export async function POST(
 
     const totalTokens = result.tokenUsage.prompt + result.tokenUsage.completion
     const cost = (totalTokens / 1000) * LLM_PER_1K
-    const newRewriteCount = Number(claimedEpisode.params?.rewrite_count || 0) + 1
 
-    // 原子 complete：更新 script + rewrite_count + 清除 lock
-    const { data: completedRow, error: completeError } = await admin
-      .from('episodes')
-      .update({
-        script: result.segments,
-        params: { ...claimedEpisode.params, rewrite_count: newRewriteCount, rewrite_in_progress: false },
-      })
-      .eq('id', id)
-      .eq('user_id', user.id)
-      .eq('status', 'script_ready')
-      .select('script, params')
-      .maybeSingle()
-
-    if (completeError) throw new Error(completeError.message)
-    if (!completedRow) throw new Error('Episode changed before rewrite could be saved')
-
-    // 记录用量
-    await admin.from('usage_logs').insert({
-      user_id: user.id,
-      episode_id: id,
-      type: 'llm_token',
-      quantity: totalTokens,
-      cost,
+    // 原子 complete：依赖 rewrite-lock-setup.sql 中的 complete_episode_rewrite 函数
+    const { data: completed, error: completeError } = await supabase.rpc('complete_episode_rewrite', {
+      p_episode_id: id,
+      p_lock_token: lockToken,
+      p_script: result.segments,
+      p_token_quantity: totalTokens,
+      p_cost: cost,
     })
+    if (completeError) throw new Error(completeError.message)
+    if (!completed) throw new Error('Episode changed before rewrite could be saved')
 
     return NextResponse.json({
-      script: completedRow.script,
-      rewrite_count: newRewriteCount,
+      script: completed.script,
+      rewrite_count: completed.rewrite_count,
       rewrite_limit: REWRITE_LIMIT,
     })
   } catch (err) {
-    await releaseLock()
+    await supabase.rpc('release_episode_rewrite_lock', {
+      p_episode_id: id,
+      p_lock_token: lockToken,
+    })
 
     return NextResponse.json(
       { error: (err as Error).message || 'Rewrite failed' },
