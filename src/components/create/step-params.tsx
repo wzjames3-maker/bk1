@@ -68,7 +68,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange }: P
         <div className="space-y-2 sm:col-span-2">
           <Label>归属项目</Label>
           <Select
-            value={projectId ?? undefined}
+            value={projectId}
             onValueChange={(v) => onProjectIdChange(v || null)}
           >
             <SelectTrigger className="w-full"><SelectValue placeholder="选择项目" /></SelectTrigger>
