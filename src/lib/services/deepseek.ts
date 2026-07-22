@@ -5,8 +5,10 @@ import type { ScriptSegment } from '@/types/database'
 const client = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY!,
   baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-  timeout: EXTERNAL_TIMEOUT_MS,
+  timeout: Math.max(EXTERNAL_TIMEOUT_MS, 120000),
 })
+
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat'
 
 interface ScriptGenInput {
   topic: string
@@ -19,16 +21,37 @@ interface ScriptGenInput {
 
 const SYSTEM_PROMPT = `你是一个专业的播客编剧。根据用户提供的素材和话题，生成一段自然、有深度的多人对话脚本。
 
-输出格式要求：严格返回 JSON 数组，每个元素格式为：
-{"role": "角色名", "text": "对话内容", "emotion": "情绪(中性/开心/惊讶/思考/兴奋)", "pause_ms": 停顿毫秒数(200-1000)}
+必须严格返回 JSON 对象，格式如下：
+{"segments":[{"role":"角色名","text":"对话内容","emotion":"情绪(中性/开心/惊讶/思考/兴奋)","pause_ms":300}]}
 
 规则：
-1. 对话要口语化、自然，像真人聊天
-2. 中文为主，专业术语可用英文（如 Transformer、Agent）
-3. 角色之间要有互动、追问、回应
-4. 根据目标时长控制总字数（每分钟约 250 字）
-5. 开头有简短的节目开场白，结尾有总结收尾
-6. pause_ms 用于控制节奏，重要转折前停顿长一些`
+1. segments 不能为空
+2. 对话要口语化、自然，像真人聊天
+3. 中文为主，专业术语可用英文（如 Transformer、Agent）
+4. 角色之间要有互动、追问、回应；若只有 1 个角色，则用独白形式
+5. 根据目标时长控制总字数（每分钟约 250 字）
+6. 开头有简短的节目开场白，结尾有总结收尾
+7. pause_ms 用于控制节奏，范围 200-1000`
+
+function extractSegments(content: string): ScriptSegment[] {
+  const cleaned = content
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+
+  const parsed = JSON.parse(cleaned)
+  if (Array.isArray(parsed)) return parsed as ScriptSegment[]
+  if (Array.isArray(parsed.segments)) return parsed.segments as ScriptSegment[]
+  if (Array.isArray(parsed.script)) return parsed.script as ScriptSegment[]
+  if (Array.isArray(parsed.data)) return parsed.data as ScriptSegment[]
+
+  for (const value of Object.values(parsed || {})) {
+    if (Array.isArray(value) && value.length > 0 && value[0] && typeof value[0] === 'object' && 'text' in (value[0] as object)) {
+      return value as ScriptSegment[]
+    }
+  }
+  return []
+}
 
 export async function generateScript(input: ScriptGenInput): Promise<{
   segments: ScriptSegment[]
@@ -47,29 +70,31 @@ export async function generateScript(input: ScriptGenInput): Promise<{
 参考素材：
 ${materials.slice(0, 8000)}
 
-请生成完整的对话脚本 JSON 数组。`
+请返回 JSON 对象，包含非空 segments 数组。`
 
   let lastError: Error | null = null
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       const response = await client.chat.completions.create({
-        model: 'deepseek-chat',
+        model: DEEPSEEK_MODEL,
         messages: [
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.8,
+        temperature: 0.7,
+        max_tokens: 8192,
         response_format: { type: 'json_object' },
       })
 
-      const content = response.choices[0]?.message?.content
+      const message = response.choices[0]?.message as {
+        content?: string | null
+        reasoning_content?: string | null
+      } | undefined
+      const content = message?.content || message?.reasoning_content
       if (!content) throw new Error('Empty response from DeepSeek')
 
-      // 解析 JSON（可能被包裹在 {"segments": [...]} 中）
-      const parsed = JSON.parse(content)
-      const segments: ScriptSegment[] = Array.isArray(parsed) ? parsed : parsed.segments || parsed.script || []
-
+      const segments = extractSegments(content)
       if (segments.length === 0) throw new Error('Generated script is empty')
 
       return {

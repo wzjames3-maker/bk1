@@ -30,7 +30,7 @@ export interface CostEstimate {
 }
 
 export function estimateCost(input: CostEstimateInput): CostEstimate {
-  const { duration_min, roles_count, material_char_count } = input
+  const { duration_min, material_char_count } = input
 
   // 估算脚本总字数 = 时长 × 每分钟字数
   const estimatedScriptChars = duration_min * AVG_CHARS_PER_MINUTE

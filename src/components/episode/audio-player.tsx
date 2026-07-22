@@ -41,20 +41,25 @@ export function AudioPlayer({ audioUrl, previewUrl, chapters, status }: Props) {
     const audio = audioRef.current
     if (!audio) return
 
+    setIsPlaying(false)
+    setCurrentTime(0)
+    setDuration(0)
+
     const onTime = () => setCurrentTime(audio.currentTime)
-    const onMeta = () => setDuration(audio.duration)
+    const onMeta = () => setDuration(audio.duration || 0)
     const onEnd = () => setIsPlaying(false)
 
     audio.addEventListener('timeupdate', onTime)
     audio.addEventListener('loadedmetadata', onMeta)
     audio.addEventListener('ended', onEnd)
+    audio.load()
 
     return () => {
       audio.removeEventListener('timeupdate', onTime)
       audio.removeEventListener('loadedmetadata', onMeta)
       audio.removeEventListener('ended', onEnd)
     }
-  }, [])
+  }, [src])
 
   const togglePlay = () => {
     const audio = audioRef.current

@@ -80,6 +80,7 @@ export function StepParams({ params, onChange }: Props) {
           >
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
+              <SelectItem value="1">1 人独白</SelectItem>
               <SelectItem value="2">2 人对话</SelectItem>
               <SelectItem value="3">3 人讨论</SelectItem>
             </SelectContent>
@@ -99,6 +100,9 @@ export function StepParams({ params, onChange }: Props) {
 
       <div className="space-y-2">
         <Label>选择角色音色（{params.voice_ids.length}/{params.roles_count}）</Label>
+        <p className="text-sm text-muted-foreground">
+          需选择与角色数量相同的音色后才能进入下一步
+        </p>
         <VoicePicker
           selected={params.voice_ids}
           onChange={(ids) => update({ voice_ids: ids })}

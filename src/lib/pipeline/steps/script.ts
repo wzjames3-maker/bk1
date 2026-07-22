@@ -1,7 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { generateScript } from '@/lib/services/deepseek'
 import { parseMaterial } from '@/lib/services/parser'
-import type { ScriptSegment } from '@/types/database'
 
 export async function executeScriptStep(episodeId: string, userId: string): Promise<void> {
   const supabase = createAdminClient()

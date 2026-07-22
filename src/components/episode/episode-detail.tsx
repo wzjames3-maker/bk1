@@ -32,6 +32,16 @@ const STATUS_LABELS: Record<string, { label: string; variant: 'default' | 'secon
 }
 
 export function EpisodeDetail({ initialEpisode, initialSteps }: Props) {
+  return (
+    <EpisodeDetailInner
+      key={initialEpisode.id}
+      initialEpisode={initialEpisode}
+      initialSteps={initialSteps}
+    />
+  )
+}
+
+function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
   const router = useRouter()
   const { episode, steps } = useEpisodeRealtime(initialEpisode.id, initialEpisode, initialSteps)
   const [editing, setEditing] = useState(false)
@@ -46,9 +56,14 @@ export function EpisodeDetail({ initialEpisode, initialSteps }: Props) {
     ? JSON.parse(episode.chapters)
     : episode.chapters || []
 
-  // 只有后处理完成后 chapters 才是 {time, title}[] 格式
+  // 后处理后 chapters 为 {time, title}[]；TTS 中转数据不再写入该字段
   const chapters: Array<{ time: string; title: string }> =
-    episode.status === 'completed' && rawChapters.length > 0 && 'time' in rawChapters[0]
+    Array.isArray(rawChapters) &&
+    rawChapters.length > 0 &&
+    typeof rawChapters[0] === 'object' &&
+    rawChapters[0] !== null &&
+    'time' in rawChapters[0] &&
+    'title' in rawChapters[0]
       ? rawChapters
       : []
 
@@ -146,7 +161,6 @@ export function EpisodeDetail({ initialEpisode, initialSteps }: Props) {
         <TabsContent value="notes" className="pt-4">
           <ShowNotes
             showNotes={episode.show_notes}
-            chapters={chapters}
             coverSuggestion={episode.cover_url}
           />
         </TabsContent>

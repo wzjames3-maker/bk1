@@ -1,4 +1,4 @@
-import type { EpisodeStatus, ScriptSegment } from './database'
+import type { EpisodeStatus } from './database'
 
 export type PipelineStep =
   | 'parsing'

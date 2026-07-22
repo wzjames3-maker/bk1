@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { parseMaterial } from '@/lib/services/parser'
 
-export async function executeParseStep(episodeId: string, userId: string): Promise<void> {
+export async function executeParseStep(episodeId: string): Promise<void> {
   const supabase = createAdminClient()
 
   const { data: episode } = await supabase

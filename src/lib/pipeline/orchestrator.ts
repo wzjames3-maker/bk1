@@ -55,8 +55,18 @@ export async function advancePipeline(
     await logStepDone(episodeId, currentStep)
 
     // 编剧完成 → 状态设为 script_ready
+    // 若用户勾选跳过确认，继续进入 confirming（内部会直通 TTS）
     if (currentStep === 'scripting') {
       await supabase.from('episodes').update({ status: 'script_ready' }).eq('id', episodeId)
+      const { data: epAfterScript } = await supabase
+        .from('episodes')
+        .select('params')
+        .eq('id', episodeId)
+        .single()
+      const scriptParams = epAfterScript?.params as { skip_confirmation?: boolean } | null
+      if (scriptParams?.skip_confirmation) {
+        return { success: true, nextStep: 'confirming' }
+      }
       return { success: true }
     }
 
@@ -65,19 +75,31 @@ export async function advancePipeline(
     if (nextStep) {
       return { success: true, nextStep }
     } else {
+      // 汇总真实用量后结算
+      const { data: usageRows } = await supabase
+        .from('usage_logs')
+        .select('cost')
+        .eq('episode_id', episodeId)
+      const actualCost = Number(
+        ((usageRows || []).reduce((sum, row) => sum + Number(row.cost || 0), 0)).toFixed(6)
+      )
+
       await supabase
         .from('episodes')
-        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          actual_cost: actualCost,
+        })
         .eq('id', episodeId)
 
-      // Pipeline 完成 → 结算
       const { data: ep } = await supabase
         .from('episodes')
-        .select('estimated_cost, actual_cost, user_id')
+        .select('estimated_cost, user_id')
         .eq('id', episodeId)
         .single()
       if (ep && ep.estimated_cost) {
-        await settle(ep.user_id, episodeId, ep.estimated_cost, ep.actual_cost || ep.estimated_cost)
+        await settle(ep.user_id, episodeId, Number(ep.estimated_cost), actualCost)
       }
     }
 

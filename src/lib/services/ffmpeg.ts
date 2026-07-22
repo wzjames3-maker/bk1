@@ -3,8 +3,9 @@ import ffmpegInstaller from '@ffmpeg-installer/ffmpeg'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { writeFile, unlink, readFile, mkdir } from 'fs/promises'
+import { writeFile, readFile, mkdir, rm } from 'fs/promises'
 import { randomUUID } from 'crypto'
+import { probeDurationMs } from '@/lib/services/audio-duration'
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path)
 
@@ -20,16 +21,8 @@ interface MixOutput {
   durationMs: number
 }
 
-// BGM 文件映射（后续可替换为实际 BGM 文件 URL）
-const BGM_MAP: Record<string, string | null> = {
-  none: null,
-  light: null,   // MVP: 暂无实际 BGM 文件，仅做拼接
-  calm: null,
-  tech: null,
-}
-
 export async function mixEpisode(options: MixOptions): Promise<MixOutput> {
-  const { segmentPaths, bgmType, userId, episodeId } = options
+  const { segmentPaths } = options
   const supabase = createAdminClient()
   const workDir = join(tmpdir(), `podcast-${randomUUID()}`)
   const localFiles: string[] = []
@@ -72,13 +65,15 @@ export async function mixEpisode(options: MixOptions): Promise<MixOutput> {
     })
 
     const outputBuffer = await readFile(outputPath)
-    const durationMs = Math.round((outputBuffer.length / 16000) * 1000)
+    let durationMs = 0
+    try {
+      durationMs = await probeDurationMs(outputPath)
+    } catch {
+      durationMs = Math.round((outputBuffer.length / 16000) * 1000)
+    }
 
     return { audioBuffer: outputBuffer, durationMs }
   } finally {
-    // 清理临时文件
-    for (const f of localFiles) {
-      await unlink(f).catch(() => {})
-    }
+    await rm(workDir, { recursive: true, force: true }).catch(() => {})
   }
 }

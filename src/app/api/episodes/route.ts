@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { preCharge, refund } from '@/lib/services/billing'
+import { preCharge } from '@/lib/services/billing'
 import { estimateCost } from '@/lib/services/cost'
 
 export async function GET(request: NextRequest) {

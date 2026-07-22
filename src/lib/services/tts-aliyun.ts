@@ -1,4 +1,5 @@
 import { EXTERNAL_TIMEOUT_MS, MAX_RETRIES } from '@/types/pipeline'
+import { probeBufferDurationMs } from '@/lib/services/audio-duration'
 
 interface TtsOptions {
   text: string
@@ -50,8 +51,12 @@ export async function synthesizeAliyun(options: TtsOptions): Promise<TtsResult> 
 
       if (audioBuffer.length < 100) throw new Error('Aliyun TTS returned empty audio')
 
-      // 粗略估算时长：MP3 128kbps ≈ 16KB/s
-      const durationMs = Math.round((audioBuffer.length / 16000) * 1000)
+      let durationMs = 0
+      try {
+        durationMs = await probeBufferDurationMs(audioBuffer, 'mp3')
+      } catch {
+        durationMs = Math.round((audioBuffer.length / 16000) * 1000)
+      }
 
       return { audioBuffer, durationMs }
     } catch (err) {

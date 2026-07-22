@@ -7,21 +7,20 @@ export async function executeMixStep(episodeId: string, userId: string): Promise
 
   const { data: episode } = await supabase
     .from('episodes')
-    .select('chapters, params')
+    .select('params')
     .eq('id', episodeId)
     .single()
 
   if (!episode) throw new Error('Episode not found')
 
-  const segments: TtsSegmentResult[] = typeof episode.chapters === 'string'
-    ? JSON.parse(episode.chapters)
-    : episode.chapters
+  const params = episode.params as {
+    bgm?: string
+    tts_segments?: TtsSegmentResult[]
+  }
+  const segments = params.tts_segments || []
+  if (!segments.length) throw new Error('No TTS segments found')
 
-  if (!segments || segments.length === 0) throw new Error('No TTS segments found')
-
-  const params = episode.params as { bgm?: string }
   const bgmType = params.bgm || 'none'
-
   const segmentPaths = segments.map(s => s.audioPath)
 
   const { audioBuffer, durationMs } = await mixEpisode({
@@ -43,10 +42,16 @@ export async function executeMixStep(episodeId: string, userId: string): Promise
     .from('audio')
     .getPublicUrl(outputPath)
 
-  // 更新 episode
+  // 更新 episode，并回写真实总时长供章节对齐
   await supabase
     .from('episodes')
-    .update({ audio_url: publicUrl })
+    .update({
+      audio_url: publicUrl,
+      params: {
+        ...params,
+        audio_duration_ms: durationMs,
+      },
+    })
     .eq('id', episodeId)
 
   // 记录混音用量

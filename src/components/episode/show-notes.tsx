@@ -4,11 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Props {
   showNotes: string | null
-  chapters: Array<{ time: string; title: string }> | null
   coverSuggestion: string | null
 }
 
-export function ShowNotes({ showNotes, chapters, coverSuggestion }: Props) {
+export function ShowNotes({ showNotes, coverSuggestion }: Props) {
   return (
     <div className="space-y-4">
       {showNotes && (

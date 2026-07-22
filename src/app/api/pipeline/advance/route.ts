@@ -16,6 +16,50 @@ registerStep('tts_processing', executeTtsStep)
 registerStep('mixing', executeMixStep)
 registerStep('post_processing', executePostStep)
 
+function isPlaceholder(value?: string | null) {
+  if (!value) return true
+  return /^(your-|YOUR_|placeholder|change-in-production)/i.test(value)
+}
+
+async function triggerNextStep(payload: {
+  episodeId: string
+  userId: string
+  step: PipelineStep
+  attempt?: number
+}) {
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const body = JSON.stringify({
+    episodeId: payload.episodeId,
+    userId: payload.userId,
+    step: payload.step,
+    attempt: payload.attempt || 1,
+  })
+
+  let lastError: unknown = null
+  for (let i = 0; i < 3; i++) {
+    try {
+      const res = await fetch(`${baseUrl}/api/pipeline/advance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-pipeline-secret': process.env.PIPELINE_INTERNAL_SECRET!,
+        },
+        body,
+      })
+      if (res.ok || res.status === 409) return
+      lastError = new Error(`advance HTTP ${res.status}: ${await res.text()}`)
+    } catch (err) {
+      lastError = err
+    }
+    await new Promise(r => setTimeout(r, 500 * Math.pow(2, i)))
+  }
+  console.error('[pipeline] failed to trigger next step', {
+    episodeId: payload.episodeId,
+    step: payload.step,
+    error: lastError instanceof Error ? lastError.message : String(lastError),
+  })
+}
+
 export async function POST(request: NextRequest) {
   // 内部调用鉴权
   const secret = request.headers.get('x-pipeline-secret')
@@ -35,16 +79,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  // Upstash Redis 并发控制：每用户最多 1 个并发 Pipeline
-  const { Redis } = await import('@upstash/redis')
-  const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_URL!,
-    token: process.env.UPSTASH_REDIS_TOKEN!,
-  })
+  const redisUrl = process.env.UPSTASH_REDIS_URL
+  const redisToken = process.env.UPSTASH_REDIS_TOKEN
+  const redisEnabled = !isPlaceholder(redisUrl) && !isPlaceholder(redisToken)
+
+  // 生产环境必须启用 Redis 并发锁，避免同用户并发 pipeline
+  if (!redisEnabled && process.env.NODE_ENV === 'production') {
+    return NextResponse.json(
+      { error: 'UPSTASH_REDIS_URL/TOKEN required in production' },
+      { status: 500 }
+    )
+  }
+
   const lockKey = `pipeline:lock:${userId}`
-  const acquired = await redis.set(lockKey, episodeId, { nx: true, ex: 300 })
-  if (!acquired) {
-    return NextResponse.json({ error: 'Pipeline already running' }, { status: 409 })
+  let releaseLock: (() => Promise<void>) | null = null
+
+  if (redisEnabled) {
+    const { Redis } = await import('@upstash/redis')
+    const redis = new Redis({ url: redisUrl!, token: redisToken! })
+    const acquired = await redis.set(lockKey, episodeId, { nx: true, ex: 300 })
+    if (!acquired) {
+      return NextResponse.json({ error: 'Pipeline already running' }, { status: 409 })
+    }
+    releaseLock = async () => {
+      await redis.del(lockKey)
+    }
   }
 
   let result: { success: boolean; error?: string; nextStep?: PipelineStep | null }
@@ -52,21 +111,19 @@ export async function POST(request: NextRequest) {
   try {
     result = await advancePipeline(episodeId, userId, step, attempt || 1)
   } finally {
-    // 释放锁，允许下一步获取
-    await redis.del(lockKey)
+    if (releaseLock) {
+      await releaseLock()
+    }
   }
 
-  // 锁已释放，安全触发下一步
+  // 锁已释放，安全触发下一步（带重试与错误日志）
   if (result.success && result.nextStep) {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-    fetch(`${baseUrl}/api/pipeline/advance`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-pipeline-secret': process.env.PIPELINE_INTERNAL_SECRET!,
-      },
-      body: JSON.stringify({ episodeId, userId, step: result.nextStep, attempt: 1 }),
-    }).catch(() => {})
+    void triggerNextStep({
+      episodeId,
+      userId,
+      step: result.nextStep,
+      attempt: 1,
+    })
   }
 
   if (!result.success) {

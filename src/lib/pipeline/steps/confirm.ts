@@ -5,7 +5,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * 如果跳过 → 直接继续到 tts_processing
  * 如果不跳过 → 状态停在 script_ready，等用户通过 /api/episodes/[id]/confirm 确认
  */
-export async function executeConfirmStep(episodeId: string, userId: string): Promise<void> {
+export async function executeConfirmStep(episodeId: string): Promise<void> {
   const supabase = createAdminClient()
 
   const { data: episode } = await supabase

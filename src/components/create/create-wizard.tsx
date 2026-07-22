@@ -44,7 +44,6 @@ export function CreateWizard() {
   // 进入 Step 3 时获取费用预估
   useEffect(() => {
     if (step !== 2) return
-    setEstimateLoading(true)
 
     // 文件类素材用 size/3 粗估字符数（中文 UTF-8 约 3 字节/字）
     const materialChars = materials.reduce((sum, m) => {
@@ -64,7 +63,7 @@ export function CreateWizard() {
     })
       .then(res => res.json())
       .then(data => {
-        const { balance: bal, sufficient, ...costData } = data
+        const { balance: bal, ...costData } = data
         setEstimate(costData)
         setBalance(bal ?? 0)
       })
@@ -74,7 +73,12 @@ export function CreateWizard() {
 
   const canNext = () => {
     if (step === 0) return topic.trim().length > 0
-    if (step === 1) return params.voice_ids.length === params.roles_count
+    if (step === 1) {
+      return (
+        params.voice_ids.length > 0 &&
+        params.voice_ids.length === params.roles_count
+      )
+    }
     return true
   }
 
@@ -144,7 +148,13 @@ export function CreateWizard() {
         />
       )}
       {step === 1 && (
-        <StepParams params={params} onChange={setParams} />
+        <StepParams
+          params={params}
+          onChange={(nextParams) => {
+            setParams(nextParams)
+            setEstimateLoading(true)
+          }}
+        />
       )}
       {step === 2 && (
         <StepConfirm
@@ -163,7 +173,13 @@ export function CreateWizard() {
           上一步
         </Button>
         {step < 2 ? (
-          <Button onClick={() => setStep(s => s + 1)} disabled={!canNext()}>
+          <Button
+            onClick={() => {
+              if (step === 1) setEstimateLoading(true)
+              setStep(s => s + 1)
+            }}
+            disabled={!canNext()}
+          >
             下一步
           </Button>
         ) : (

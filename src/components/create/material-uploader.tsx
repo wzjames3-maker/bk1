@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -27,7 +27,11 @@ export function MaterialUploader({ materials, onChange }: Props) {
   const [textInput, setTextInput] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const materialsRef = useRef(materials)
-  materialsRef.current = materials
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    materialsRef.current = materials
+  }, [materials])
 
   const handleFileUpload = useCallback(async (files: FileList) => {
     for (const file of Array.from(files)) {
@@ -109,18 +113,21 @@ export function MaterialUploader({ materials, onChange }: Props) {
             onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFileUpload(e.dataTransfer.files) }}
           >
             <p className="text-muted-foreground mb-4">拖拽文件到此处，或</p>
-            <label>
-              <input
-                type="file"
-                className="hidden"
-                multiple
-                accept=".pdf,.doc,.docx,.txt"
-                onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-              />
-              <Button variant="outline" render={<span />}>
-                选择文件
-              </Button>
-            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              multiple
+              accept=".pdf,.doc,.docx,.txt"
+              onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              选择文件
+            </Button>
             <p className="text-xs text-muted-foreground mt-2">支持 PDF、Word、TXT，最大 10MB</p>
           </div>
         </TabsContent>
