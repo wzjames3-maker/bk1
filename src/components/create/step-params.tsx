@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
@@ -17,6 +18,8 @@ export interface EpisodeParams {
 interface Props {
   params: EpisodeParams
   onChange: (params: EpisodeParams) => void
+  projectId: string | null
+  onProjectIdChange: (id: string | null) => void
 }
 
 const STYLES = [
@@ -33,19 +36,50 @@ const BGM_OPTIONS = [
   { value: 'tech', label: '科技感' },
 ]
 
-export function StepParams({ params, onChange }: Props) {
+export function StepParams({ params, onChange, projectId, onProjectIdChange }: Props) {
+  const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
+
+  useEffect(() => {
+    fetch('/api/projects')
+      .then(r => r.json())
+      .then((list) => {
+        if (!Array.isArray(list)) return
+        setProjects(list)
+        if (!projectId && list[0]?.id) onProjectIdChange(list[0].id)
+      })
+      .catch(console.error)
+    // 仅挂载时拉取项目列表
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const update = (partial: Partial<EpisodeParams>) => {
     const next = { ...params, ...partial }
-    // 角色数减少时裁剪已选音色
     if (partial.roles_count && next.voice_ids.length > partial.roles_count) {
       next.voice_ids = next.voice_ids.slice(0, partial.roles_count)
     }
     onChange(next)
   }
 
+  const voicesIncomplete = params.voice_ids.length !== params.roles_count
+
   return (
     <div className="space-y-8">
       <div className="grid gap-6 sm:grid-cols-2">
+        <div className="space-y-2 sm:col-span-2">
+          <Label>归属项目</Label>
+          <Select
+            value={projectId ?? undefined}
+            onValueChange={(v) => onProjectIdChange(v || null)}
+          >
+            <SelectTrigger className="w-full"><SelectValue placeholder="选择项目" /></SelectTrigger>
+            <SelectContent>
+              {projects.map(p => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="space-y-2">
           <Label>目标时长</Label>
           <Select
@@ -103,6 +137,11 @@ export function StepParams({ params, onChange }: Props) {
         <p className="text-sm text-muted-foreground">
           需选择与角色数量相同的音色后才能进入下一步
         </p>
+        {voicesIncomplete && (
+          <p className="text-sm text-destructive">
+            请选满 {params.roles_count} 个音色（已选 {params.voice_ids.length}）
+          </p>
+        )}
         <VoicePicker
           selected={params.voice_ids}
           onChange={(ids) => update({ voice_ids: ids })}

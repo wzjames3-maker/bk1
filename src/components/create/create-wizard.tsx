@@ -24,11 +24,12 @@ export function CreateWizard() {
   const [params, setParams] = useState<EpisodeParams>({
     duration_min: 10,
     style: 'casual',
-    roles_count: 2,
+    roles_count: 1,
     voice_ids: [],
     bgm: 'light',
     skip_confirmation: false,
   })
+  const [projectId, setProjectId] = useState<string | null>(null)
 
   // Step 3 数据
   const [estimate, setEstimate] = useState<{
@@ -103,6 +104,7 @@ export function CreateWizard() {
             bgm: params.bgm,
             skip_confirmation: params.skip_confirmation,
           },
+          project_id: projectId || undefined,
           estimated_cost: estimate?.total || null,
         }),
       })
@@ -150,6 +152,8 @@ export function CreateWizard() {
       {step === 1 && (
         <StepParams
           params={params}
+          projectId={projectId}
+          onProjectIdChange={setProjectId}
           onChange={(nextParams) => {
             setParams(nextParams)
             setEstimateLoading(true)
