@@ -10,7 +10,7 @@ export async function executePostStep(episodeId: string): Promise<void> {
 
   const { data: episode } = await supabase
     .from('episodes')
-    .select('topic, script, params, tts_segments')
+    .select('*')
     .eq('id', episodeId)
     .single()
 
