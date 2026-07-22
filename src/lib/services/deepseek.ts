@@ -1,6 +1,11 @@
 import OpenAI from 'openai'
 import { EXTERNAL_TIMEOUT_MS, MAX_RETRIES } from '@/types/pipeline'
 import type { ScriptSegment } from '@/types/database'
+import {
+  buildStyleSystemAppendix,
+  getStylePreset,
+  targetCharCount,
+} from '@/lib/services/style-presets'
 
 const client = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY!,
@@ -59,11 +64,13 @@ export async function generateScript(input: ScriptGenInput): Promise<{
 }> {
   const { topic, materials, durationMin, style, rolesCount, voiceNames } = input
 
-  const targetChars = durationMin * 250
+  const targetChars = targetCharCount(durationMin, style)
+  const styleLabel = getStylePreset(style).label
   const rolesDesc = voiceNames.slice(0, rolesCount).join('、')
+  const system = SYSTEM_PROMPT + '\n' + buildStyleSystemAppendix(style)
 
   const userPrompt = `话题：${topic}
-风格：${style}
+风格：${styleLabel}（code=${style}）
 角色：${rolesDesc}（共 ${rolesCount} 人）
 目标时长：${durationMin} 分钟（约 ${targetChars} 字）
 
@@ -79,7 +86,7 @@ ${materials.slice(0, 8000)}
       const response = await client.chat.completions.create({
         model: DEEPSEEK_MODEL,
         messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'system', content: system },
           { role: 'user', content: userPrompt },
         ],
         temperature: 0.7,
