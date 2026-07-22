@@ -14,10 +14,10 @@ export default async function DashboardPage() {
 
   const { data: recentEpisodes } = await supabase
     .from('episodes')
-    .select('id, title, status, created_at')
+    .select('id, title, topic, status, created_at, audio_url')
     .eq('user_id', user!.id)
     .order('created_at', { ascending: false })
-    .limit(5)
+    .limit(10)
 
   return (
     <div className="space-y-8">
@@ -73,9 +73,17 @@ export default async function DashboardPage() {
             {recentEpisodes.map((ep) => (
               <Link key={ep.id} href={`/episodes/${ep.id}`}>
                 <Card className="transition-colors hover:bg-muted/50">
-                  <CardContent className="flex items-center justify-between py-4">
-                    <span>{ep.title || '未命名节目'}</span>
-                    <span className="text-sm text-muted-foreground">{ep.status}</span>
+                  <CardContent className="flex items-center justify-between gap-4 py-4">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">{ep.title || ep.topic || '未命名节目'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(ep.created_at).toLocaleString('zh-CN')}
+                      </p>
+                    </div>
+                    <span className="shrink-0 text-sm text-muted-foreground">
+                      {ep.status === 'completed' ? '已完成' : ep.status}
+                      {ep.audio_url ? ' · 有音频' : ''}
+                    </span>
                   </CardContent>
                 </Card>
               </Link>

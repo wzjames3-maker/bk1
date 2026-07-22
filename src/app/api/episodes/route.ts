@@ -45,16 +45,43 @@ export async function POST(request: NextRequest) {
   })
   const estimatedCost = costEstimate.total
 
+  // 未指定项目时，自动归入用户默认项目（没有则创建）
+  let projectId: string | null = body.project_id || null
+  if (!projectId) {
+    const { data: existingProject } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (existingProject?.id) {
+      projectId = existingProject.id
+    } else {
+      const { data: createdProject } = await supabase
+        .from('projects')
+        .insert({
+          user_id: user.id,
+          name: '默认项目',
+          description: '自动创建的播客项目',
+        })
+        .select('id')
+        .single()
+      projectId = createdProject?.id || null
+    }
+  }
+
   // 先创建 episode
   const { data, error } = await supabase
     .from('episodes')
     .insert({
       user_id: user.id,
-      project_id: body.project_id || null,
+      project_id: projectId,
       topic: body.topic,
       params: { ...body.params, duration_min: durationMin, roles_count: rolesCount },
       materials: body.materials,
-      title: body.title || null,
+      title: body.title || body.topic || null,
       estimated_cost: estimatedCost || null,
     })
     .select()

@@ -1,6 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { generatePostContent } from '@/lib/services/post-process'
-import { buildChaptersFromSegments } from '@/lib/services/audio-duration'
+import { buildChaptersFromSegments, scaleChaptersToDuration } from '@/lib/services/audio-duration'
 import type { ScriptSegment } from '@/types/database'
 import type { TtsSegmentResult } from '@/types/pipeline'
 
@@ -36,10 +36,15 @@ export async function executePostStep(episodeId: string): Promise<void> {
     role: script?.[i]?.role,
   }))
 
-  const chapters = buildChaptersFromSegments(timedSegments, {
+  let chapters = buildChaptersFromSegments(timedSegments, {
     targetChapterMs: Math.max(15000, Math.floor((totalDurationMs || 60000) / 8)),
     maxChapters: 12,
   })
+
+  // 有混音后真实总时长时，缩放到音频边界内
+  if (params.audio_duration_ms) {
+    chapters = scaleChaptersToDuration(chapters, params.audio_duration_ms)
+  }
 
   const { showNotes, coverSuggestion, chapterTitles } = await generatePostContent(
     episode.topic,

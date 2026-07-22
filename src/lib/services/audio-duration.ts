@@ -92,3 +92,27 @@ export function buildChaptersFromSegments(
   if (chapters[0]) chapters[0].time = '00:00'
   return chapters
 }
+
+/** 将章节时间缩放到真实音频总时长，避免段时长估算偏差导致超界 */
+export function scaleChaptersToDuration(
+  chapters: Array<{ time: string; title: string }>,
+  actualDurationMs: number
+): Array<{ time: string; title: string }> {
+  if (!chapters.length || !actualDurationMs || actualDurationMs <= 0) return chapters
+
+  const toMs = (time: string) => {
+    const parts = time.split(':').map(Number)
+    if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000
+    if (parts.length === 3) return (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000
+    return 0
+  }
+
+  const lastMs = toMs(chapters[chapters.length - 1].time)
+  if (lastMs <= 0 || lastMs <= actualDurationMs) return chapters
+
+  const scale = actualDurationMs / lastMs
+  return chapters.map((ch, i) => ({
+    title: ch.title,
+    time: i === 0 ? '00:00' : formatChapterTime(Math.min(actualDurationMs, Math.round(toMs(ch.time) * scale))),
+  }))
+}
