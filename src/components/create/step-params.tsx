@@ -58,13 +58,14 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
   }, [])
 
   // 获取音色列表（脚本模式下用于下拉选择）
+  const rolesKey = scriptRoles?.join(',') || ''
   useEffect(() => {
-    if (!scriptRoles || scriptRoles.length === 0) return
+    if (!rolesKey) return
     fetch('/api/voices')
       .then(res => res.json())
       .then(setVoices)
       .catch(console.error)
-  }, [scriptRoles])
+  }, [rolesKey])
 
   // 脚本模式：自动设置 roles_count
   useEffect(() => {
@@ -73,9 +74,9 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
       onChange({ ...params, roles_count: scriptRoles.length })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scriptRoles])
+  }, [rolesKey])
 
-  // 脚本模式：调用 LLM 音色匹配
+  // 脚本模式：调用 LLM 音色匹配（仅一次）
   useEffect(() => {
     if (!scriptRoles || scriptRoles.length === 0) return
     setMatching(true)
@@ -95,7 +96,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
       .catch(console.error)
       .finally(() => setMatching(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scriptRoles])
+  }, [rolesKey])
 
   const update = (partial: Partial<EpisodeParams>) => {
     const next = { ...params, ...partial }
@@ -196,7 +197,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
                   <span className="w-16 font-medium">{role}</span>
                   <span>→</span>
                   <Select
-                    value={voiceMapping[role] || undefined}
+                    value={voiceMapping[role] || null}
                     onValueChange={(v) => {
                       if (!v) return
                       const newMapping: Record<string, string> = { ...voiceMapping, [role]: v }
