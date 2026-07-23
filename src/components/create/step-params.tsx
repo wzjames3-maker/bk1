@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { VoicePicker } from './voice-picker'
+import type { Voice } from '@/types/database'
 
 export interface EpisodeParams {
   duration_min: number
@@ -20,6 +21,7 @@ interface Props {
   onChange: (params: EpisodeParams) => void
   projectId: string | null
   onProjectIdChange: (id: string | null) => void
+  scriptRoles?: string[]
 }
 
 const STYLES = [
@@ -36,8 +38,11 @@ const BGM_OPTIONS = [
   { value: 'tech', label: '科技感' },
 ]
 
-export function StepParams({ params, onChange, projectId, onProjectIdChange }: Props) {
+export function StepParams({ params, onChange, projectId, onProjectIdChange, scriptRoles }: Props) {
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
+  const [voices, setVoices] = useState<Voice[]>([])
+  const [voiceMapping, setVoiceMapping] = useState<Record<string, string>>({})
+  const [matching, setMatching] = useState(false)
 
   useEffect(() => {
     fetch('/api/projects')
@@ -51,6 +56,46 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange }: P
     // 仅挂载时拉取项目列表
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 获取音色列表（脚本模式下用于下拉选择）
+  useEffect(() => {
+    if (!scriptRoles || scriptRoles.length === 0) return
+    fetch('/api/voices')
+      .then(res => res.json())
+      .then(setVoices)
+      .catch(console.error)
+  }, [scriptRoles])
+
+  // 脚本模式：自动设置 roles_count
+  useEffect(() => {
+    if (!scriptRoles || scriptRoles.length === 0) return
+    if (params.roles_count !== scriptRoles.length) {
+      onChange({ ...params, roles_count: scriptRoles.length })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scriptRoles])
+
+  // 脚本模式：调用 LLM 音色匹配
+  useEffect(() => {
+    if (!scriptRoles || scriptRoles.length === 0) return
+    setMatching(true)
+    fetch('/api/voices/match', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roles: scriptRoles }),
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.mapping) {
+          setVoiceMapping(data.mapping)
+          const ids = scriptRoles.map(r => data.mapping[r]).filter(Boolean)
+          onChange({ ...params, voice_ids: ids, roles_count: scriptRoles.length })
+        }
+      })
+      .catch(console.error)
+      .finally(() => setMatching(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scriptRoles])
 
   const update = (partial: Partial<EpisodeParams>) => {
     const next = { ...params, ...partial }
@@ -108,17 +153,26 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange }: P
 
         <div className="space-y-2">
           <Label>角色数量</Label>
-          <Select
-            value={String(params.roles_count)}
-            onValueChange={(v) => update({ roles_count: Number(v) })}
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="1">1 人独白</SelectItem>
-              <SelectItem value="2">2 人对话</SelectItem>
-              <SelectItem value="3">3 人讨论</SelectItem>
-            </SelectContent>
-          </Select>
+          {scriptRoles && scriptRoles.length > 0 ? (
+            <Select value={String(scriptRoles.length)} disabled>
+              <SelectTrigger className="opacity-60"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value={String(scriptRoles.length)}>{scriptRoles.length} 人（脚本角色）</SelectItem>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Select
+              value={String(params.roles_count)}
+              onValueChange={(v) => update({ roles_count: Number(v) })}
+            >
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">1 人独白</SelectItem>
+                <SelectItem value="2">2 人对话</SelectItem>
+                <SelectItem value="3">3 人讨论</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -133,20 +187,55 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange }: P
       </div>
 
       <div className="space-y-2">
-        <Label>选择角色音色（{params.voice_ids.length}/{params.roles_count}）</Label>
-        <p className="text-sm text-muted-foreground">
-          需选择与角色数量相同的音色后才能进入下一步
-        </p>
-        {voicesIncomplete && (
-          <p className="text-sm text-destructive">
-            请选满 {params.roles_count} 个音色（已选 {params.voice_ids.length}）
-          </p>
+        {scriptRoles && scriptRoles.length > 0 ? (
+          <>
+            <Label>角色音色匹配{matching && '（匹配中...）'}</Label>
+            <div className="space-y-2">
+              {scriptRoles.map(role => (
+                <div key={role} className="flex items-center gap-2 text-sm">
+                  <span className="w-16 font-medium">{role}</span>
+                  <span>→</span>
+                  <Select
+                    value={voiceMapping[role] || undefined}
+                    onValueChange={(v) => {
+                      if (!v) return
+                      const newMapping: Record<string, string> = { ...voiceMapping, [role]: v }
+                      setVoiceMapping(newMapping)
+                      const ids = scriptRoles.map(r => newMapping[r]).filter((id): id is string => Boolean(id))
+                      onChange({ ...params, voice_ids: ids })
+                    }}
+                  >
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="选择音色" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {voices.map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.name}（{v.style}）</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <Label>选择角色音色（{params.voice_ids.length}/{params.roles_count}）</Label>
+            <p className="text-sm text-muted-foreground">
+              需选择与角色数量相同的音色后才能进入下一步
+            </p>
+            {voicesIncomplete && (
+              <p className="text-sm text-destructive">
+                请选满 {params.roles_count} 个音色（已选 {params.voice_ids.length}）
+              </p>
+            )}
+            <VoicePicker
+              selected={params.voice_ids}
+              onChange={(ids) => update({ voice_ids: ids })}
+              maxCount={params.roles_count}
+            />
+          </>
         )}
-        <VoicePicker
-          selected={params.voice_ids}
-          onChange={(ids) => update({ voice_ids: ids })}
-          maxCount={params.roles_count}
-        />
       </div>
 
       <div className="flex items-center justify-between rounded-lg border p-4">

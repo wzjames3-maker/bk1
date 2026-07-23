@@ -174,6 +174,7 @@ export function CreateWizard() {
             setParams(nextParams)
             setEstimateLoading(true)
           }}
+          scriptRoles={mode === 'script' ? [...new Set(segments.map(s => s.role))] : undefined}
         />
       )}
       {step === 2 && (
