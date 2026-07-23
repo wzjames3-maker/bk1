@@ -124,4 +124,5 @@ export interface CreateEpisodeInput {
   project_id?: string
   title?: string
   estimated_cost?: number
+  script?: ScriptSegment[]  // 用户直传脚本（提供时跳过 AI 编剧）
 }

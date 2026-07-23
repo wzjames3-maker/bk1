@@ -82,6 +82,67 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // === 脚本模式：用户直传 script，跳过 parsing + scripting ===
+  const userScript = body.script as Array<{ role: string; text: string; emotion?: string; pause_ms?: number }> | undefined
+  if (userScript && Array.isArray(userScript) && userScript.length > 0) {
+    const normalizedScript = userScript.map(s => ({
+      role: s.role || '主播',
+      text: s.text || '',
+      emotion: s.emotion || '中性',
+      pause_ms: s.pause_ms ?? 300,
+    }))
+
+    const { data, error } = await supabase
+      .from('episodes')
+      .insert({
+        user_id: user.id,
+        project_id: projectId,
+        topic: body.topic || '用户脚本',
+        script: JSON.stringify(normalizedScript),
+        status: 'script_ready',
+        params: { ...body.params, source: 'user_script' },
+        materials: [],
+        title: body.title || body.topic || '用户脚本',
+        estimated_cost: estimatedCost || null,
+        preview_url: 'pending',
+      })
+      .select()
+      .single()
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    // 预扣费
+    if (estimatedCost && estimatedCost > 0) {
+      const charged = await preCharge(user.id, estimatedCost, data.id)
+      if (!charged) {
+        await supabase.from('episodes').delete().eq('id', data.id)
+        return NextResponse.json({ error: 'Insufficient balance' }, { status: 402 })
+      }
+    }
+
+    // skip_confirmation 时直接触发 confirming → TTS
+    if (body.params?.skip_confirmation) {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+      void fetch(`${baseUrl}/api/pipeline/advance`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-pipeline-secret': process.env.PIPELINE_INTERNAL_SECRET!,
+        },
+        body: JSON.stringify({
+          episodeId: data.id,
+          userId: user.id,
+          step: 'confirming',
+          attempt: 1,
+        }),
+      })
+    }
+
+    return NextResponse.json(data, { status: 201 })
+  }
+
+  // === 以下为现有 AI 编剧模式（不变） ===
+
   // 先创建 episode
   const { data, error } = await supabase
     .from('episodes')
