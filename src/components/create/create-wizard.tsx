@@ -8,6 +8,7 @@ import { StepMaterials } from './step-materials'
 import { StepParams, type EpisodeParams } from './step-params'
 import { StepConfirm } from './step-confirm'
 import type { MaterialItem } from './material-uploader'
+import type { ScriptSegment } from '@/types/database'
 
 const STEPS = ['输入素材', '设置参数', '确认生成']
 
@@ -19,6 +20,9 @@ export function CreateWizard() {
   // Step 1 数据
   const [topic, setTopic] = useState('')
   const [materials, setMaterials] = useState<MaterialItem[]>([])
+  const [mode, setMode] = useState<'ai' | 'script'>('ai')
+  const [segments, setSegments] = useState<ScriptSegment[]>([])
+  const [polishEnabled, setPolishEnabled] = useState(false)
 
   // Step 2 数据
   const [params, setParams] = useState<EpisodeParams>({
@@ -73,7 +77,10 @@ export function CreateWizard() {
   }, [step, params.duration_min, params.roles_count, materials])
 
   const canNext = () => {
-    if (step === 0) return topic.trim().length > 0
+    if (step === 0) {
+      if (mode === 'script') return segments.length > 0
+      return topic.trim().length > 0
+    }
     if (step === 1) {
       return (
         params.voice_ids.length > 0 &&
@@ -90,16 +97,19 @@ export function CreateWizard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topic,
-          materials: materials.map(m => ({
+          topic: mode === 'script' ? (topic.trim() || '用户脚本') : topic,
+          materials: mode === 'ai' ? materials.map(m => ({
             type: m.type,
             url: m.url || m.path || '',
             text: m.text,
-          })),
+          })) : [],
+          script: mode === 'script' ? segments : undefined,
           params: {
             duration_min: params.duration_min,
             style: params.style,
-            roles_count: params.roles_count,
+            roles_count: mode === 'script'
+              ? [...new Set(segments.map(s => s.role))].length
+              : params.roles_count,
             voice_ids: params.voice_ids,
             bgm: params.bgm,
             skip_confirmation: params.skip_confirmation,
@@ -147,6 +157,12 @@ export function CreateWizard() {
           onTopicChange={setTopic}
           materials={materials}
           onMaterialsChange={setMaterials}
+          mode={mode}
+          onModeChange={setMode}
+          segments={segments}
+          onSegmentsChange={setSegments}
+          polishEnabled={polishEnabled}
+          onPolishChange={setPolishEnabled}
         />
       )}
       {step === 1 && (
