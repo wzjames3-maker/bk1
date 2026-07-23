@@ -63,7 +63,10 @@ export function CreateWizard() {
       body: JSON.stringify({
         duration_min: params.duration_min,
         roles_count: params.roles_count,
-        material_char_count: materialChars,
+        material_char_count: mode === 'ai' ? materialChars : 0,
+        script_char_count: mode === 'script'
+          ? segments.reduce((sum, s) => sum + s.text.length, 0)
+          : undefined,
       }),
     })
       .then(res => res.json())
@@ -74,7 +77,7 @@ export function CreateWizard() {
       })
       .catch(console.error)
       .finally(() => setEstimateLoading(false))
-  }, [step, params.duration_min, params.roles_count, materials])
+  }, [step, params.duration_min, params.roles_count, materials, mode, segments])
 
   const canNext = () => {
     if (step === 0) {
