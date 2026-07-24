@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import OpenAI from 'openai'
 import type { ScriptSegment } from '@/types/database'
+import { validateSegments, normalizeSegments, validateFinal } from '@/lib/services/script-validate'
+import { logLlmUsage } from '@/lib/services/usage-logger'
 
 const client = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY!,
@@ -55,10 +57,19 @@ export async function POST(request: NextRequest) {
     }
 
     const parsed = JSON.parse(jsonMatch[0])
-    const polished: ScriptSegment[] = parsed.segments || []
-    if (polished.length === 0) {
+    const rawPolished = parsed.segments || []
+    if (!validateSegments(rawPolished)) {
+      return NextResponse.json({ error: 'AI 返回格式错误，请重试' }, { status: 502 })
+    }
+
+    const polished = normalizeSegments(rawPolished as ScriptSegment[])
+    if (!validateFinal(polished)) {
       return NextResponse.json({ error: 'AI 返回为空，请重试' }, { status: 502 })
     }
+
+    const promptTokens = res.usage?.prompt_tokens || 0
+    const completionTokens = res.usage?.completion_tokens || 0
+    await logLlmUsage(user.id, promptTokens, completionTokens)
 
     return NextResponse.json({ segments: polished })
   } catch (err) {

@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { parseScript } from '@/lib/services/script-parser'
 import type { ScriptSegment } from '@/types/database'
 
 interface Props {
@@ -18,12 +17,39 @@ interface Props {
 export function ScriptInput({ segments, onSegmentsChange, polishEnabled, onPolishChange }: Props) {
   const [rawText, setRawText] = useState('')
   const [parsed, setParsed] = useState(false)
+  const [parsing, setParsing] = useState(false)
   const [polishing, setPolishing] = useState(false)
+  const [parseError, setParseError] = useState('')
+
+  const runParse = async (text: string) => {
+    if (!text.trim() || parsing) return
+    setParsing(true)
+    setParseError('')
+    onSegmentsChange([])
+    setParsed(false)
+    try {
+      const res = await fetch('/api/script/parse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawText: text }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '解析失败')
+      if (!Array.isArray(data.segments) || data.segments.length === 0) {
+        throw new Error('解析结果为空')
+      }
+      onSegmentsChange(data.segments)
+      setParsed(true)
+    } catch (e) {
+      setParseError((e as Error).message)
+      setParsed(false)
+    } finally {
+      setParsing(false)
+    }
+  }
 
   const handleParse = () => {
-    const result = parseScript(rawText)
-    onSegmentsChange(result)
-    setParsed(result.length > 0)
+    void runParse(rawText)
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -44,13 +70,13 @@ export function ScriptInput({ segments, onSegmentsChange, polishEnabled, onPolis
     }
 
     setRawText(text)
-    const result = parseScript(text)
-    onSegmentsChange(result)
-    setParsed(result.length > 0)
+    void runParse(text)
   }
 
   const handlePolish = async () => {
+    if (!segments.length || polishing) return
     setPolishing(true)
+    setParseError('')
     try {
       const res = await fetch('/api/script/polish', {
         method: 'POST',
@@ -58,7 +84,12 @@ export function ScriptInput({ segments, onSegmentsChange, polishEnabled, onPolis
         body: JSON.stringify({ segments }),
       })
       const data = await res.json()
-      if (data.segments) onSegmentsChange(data.segments)
+      if (!res.ok) throw new Error(data.error || '润色失败')
+      if (Array.isArray(data.segments) && data.segments.length > 0) {
+        onSegmentsChange(data.segments)
+      }
+    } catch (e) {
+      setParseError((e as Error).message)
     } finally {
       setPolishing(false)
     }
@@ -85,21 +116,29 @@ export function ScriptInput({ segments, onSegmentsChange, polishEnabled, onPolis
           placeholder={'支持两种格式：\n\n结构化对话：\n小林：大家好\n老陈：你好\n\n或纯文本（系统自动拆段）'}
           className="min-h-[200px] font-mono text-sm"
           value={rawText}
-          onChange={(e) => { setRawText(e.target.value); setParsed(false) }}
+          onChange={(e) => {
+            setRawText(e.target.value)
+            setParsed(false)
+            onSegmentsChange([])
+          }}
         />
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={handleParse} disabled={!rawText.trim()}>
-          解析预览
+        <Button variant="outline" size="sm" onClick={handleParse} disabled={!rawText.trim() || parsing}>
+          {parsing ? 'AI 解析中...' : '解析预览'}
         </Button>
-        <label className="cursor-pointer">
+        <label className="cursor-pointer inline-flex">
           <input type="file" accept=".txt,.docx,.md" className="hidden" onChange={handleFileUpload} />
-          <Button variant="outline" size="sm">
+          <span className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border border-input bg-background shadow-sm hover:bg-accent hover:text-accent-foreground h-8 px-3">
             上传文件
-          </Button>
+          </span>
         </label>
       </div>
+
+      {parseError && (
+        <p className="text-sm text-destructive">{parseError}</p>
+      )}
 
       {parsed && segments.length > 0 && (
         <div className="space-y-3 rounded-lg border p-4">

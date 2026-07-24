@@ -29,6 +29,12 @@ export interface CostEstimate {
   }
 }
 
+/** 按实际 token 数计算 LLM 费用（美元），与 rewrite/pipeline 统一单价 */
+export function llmTokenCost(totalTokens: number): number {
+  const cost = (Math.max(0, totalTokens) / 1000) * PRICING.llm_per_1k_tokens
+  return Math.round(cost * 1_000_000) / 1_000_000
+}
+
 export function estimateCost(input: CostEstimateInput): CostEstimate {
   const { duration_min, material_char_count } = input
 
