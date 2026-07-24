@@ -59,6 +59,7 @@ export interface Episode {
   preview_url: string | null
   estimated_cost: number | null
   actual_cost: number | null
+  refunded_at: string | null
   created_at: string
   completed_at: string | null
 }

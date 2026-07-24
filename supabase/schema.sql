@@ -59,6 +59,7 @@ create table episodes (
   tts_segments jsonb,
   estimated_cost decimal(10,4),
   actual_cost decimal(10,4),
+  refunded_at timestamptz,
   created_at timestamptz not null default now(),
   completed_at timestamptz
 );

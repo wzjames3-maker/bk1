@@ -63,7 +63,7 @@ export async function settle(
 }
 
 /**
- * 全额退还（episode 失败时调用）
+ * 全额退还（episode 失败时调用，幂等：只退一次）
  */
 export async function refund(
   userId: string,
@@ -71,6 +71,18 @@ export async function refund(
   amount: number
 ): Promise<void> {
   const admin = createAdminClient()
+
+  // 幂等检查：已退款则跳过
+  const { data: ep } = await admin
+    .from('episodes')
+    .select('refunded_at')
+    .eq('id', episodeId)
+    .single()
+
+  if (ep?.refunded_at) {
+    console.log(`[billing] episode ${episodeId} already refunded, skipping`)
+    return
+  }
 
   await admin.rpc('adjust_balance', { uid: userId, delta: amount })
 
@@ -80,6 +92,12 @@ export async function refund(
     amount: amount,
     description: `失败退还：${episodeId}`,
   })
+
+  // 标记已退款
+  await admin
+    .from('episodes')
+    .update({ refunded_at: new Date().toISOString() })
+    .eq('id', episodeId)
 }
 
 /**
