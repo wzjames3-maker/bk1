@@ -3,6 +3,7 @@
 import { useRef, useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Download } from 'lucide-react'
 
 interface Chapter {
   time: string    // "00:00" 格式
@@ -147,7 +148,7 @@ export function AudioPlayer({ audioUrl, previewUrl, chapters, status, title }: P
                 rel="noopener noreferrer"
               >
                 <Button size="sm" variant="outline">
-                  ⬇️ 下载音频
+                  <Download className="size-3.5" /> 下载音频
                 </Button>
               </a>
             )}

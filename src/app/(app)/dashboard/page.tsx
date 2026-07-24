@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
+import { Sparkles } from 'lucide-react'
 
 const STATUS_LABEL: Record<string, string> = {
   pending: '等待中',
@@ -42,7 +43,7 @@ export default async function DashboardPage() {
           <p className="text-muted-foreground">开始制作你的下一期播客</p>
         </div>
         <Link href="/create">
-          <Button size="lg">✨ 创建新节目</Button>
+          <Button size="lg"><Sparkles className="size-4" /> 创建新节目</Button>
         </Link>
       </div>
 

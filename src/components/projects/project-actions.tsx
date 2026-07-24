@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
+import { Pencil, Trash2 } from 'lucide-react'
 
 interface Props {
   projectId: string
@@ -89,10 +90,10 @@ export function ProjectActions({ projectId, projectName, projectDescription, epi
   return (
     <div className="flex gap-1">
       <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setEditing(true)}>
-        ✏️ 编辑
+        <Pencil className="size-3" /> 编辑
       </Button>
       <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-destructive" onClick={() => setConfirming(true)}>
-        🗑️ 删除
+        <Trash2 className="size-3" /> 删除
       </Button>
     </div>
   )

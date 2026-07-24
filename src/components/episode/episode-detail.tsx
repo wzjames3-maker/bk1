@@ -13,6 +13,7 @@ import { ScriptEditor } from './script-editor'
 import { ShowNotes } from './show-notes'
 import { DeleteDialog } from '@/components/episodes/delete-dialog'
 import { useEpisodeRealtime } from '@/lib/hooks/use-episode-realtime'
+import { RefreshCw, Link2 } from 'lucide-react'
 import type { Episode, EpisodeStep, ScriptSegment } from '@/types/database'
 
 interface Props {
@@ -208,12 +209,12 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
           )}
           {canRegenerate && (
             <Button variant="outline" onClick={handleRegenerate} disabled={regenerating}>
-              {regenerating ? '生成中...' : '🔄 重新生成'}
+              {regenerating ? '生成中...' : <><RefreshCw className="size-4" /> 重新生成</>}
             </Button>
           )}
           {episode.status === 'completed' && (
             <Button size="sm" variant="outline" onClick={handleShare} disabled={shareLoading}>
-              {shareLoading ? '生成中...' : '🔗 分享'}
+              {shareLoading ? '生成中...' : <><Link2 className="size-4" /> 分享</>}
             </Button>
           )}
           <DeleteDialog

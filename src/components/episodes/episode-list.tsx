@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { DeleteDialog } from './delete-dialog'
+import { RefreshCw, Trash2, Sparkles, Mic } from 'lucide-react'
 
 interface EpisodeItem {
   id: string
@@ -186,10 +187,10 @@ export function EpisodeList() {
         <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-4 py-2">
           <span className="text-sm font-medium">已选 {selected.size} 期</span>
           <Button size="sm" variant="outline" disabled={bulkLoading} onClick={() => handleBulk('regenerate')}>
-            🔄 批量重新生成
+            <RefreshCw className="size-3.5" /> 批量重新生成
           </Button>
           <Button size="sm" variant="destructive" disabled={bulkLoading} onClick={() => { if (confirm(`确定删除选中的 ${selected.size} 期节目？此操作不可恢复。`)) handleBulk('delete') }}>
-            🗑️ 批量删除
+            <Trash2 className="size-3.5" /> 批量删除
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>取消选择</Button>
         </div>
@@ -214,14 +215,14 @@ export function EpisodeList() {
       ) : episodes.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <span className="text-4xl">🎙️</span>
+            <Mic className="size-10 text-muted-foreground" />
             <p className="font-medium">{search ? `没有找到与「${search}」相关的节目` : '还没有节目'}</p>
             <p className="text-sm text-muted-foreground">
               {search ? '试试其他关键词，或清除搜索条件' : '点击下方按钮，开始制作你的第一期播客'}
             </p>
             {!search && (
               <Link href="/create">
-                <Button className="mt-2">✨ 创建新节目</Button>
+                <Button className="mt-2"><Sparkles className="size-4" /> 创建新节目</Button>
               </Link>
             )}
           </CardContent>
@@ -255,7 +256,7 @@ export function EpisodeList() {
                         disabled={regenerating === ep.id}
                         onClick={() => handleRegenerate(ep.id)}
                       >
-                        {regenerating === ep.id ? '生成中...' : '🔄 重新生成'}
+                        {regenerating === ep.id ? '生成中...' : <><RefreshCw className="size-3.5" /> 重新生成</>}
                       </Button>
                     )}
                     <DeleteDialog

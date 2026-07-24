@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Command } from 'cmdk'
+import { LayoutDashboard, Mic, ListMusic, Sparkles, CreditCard, Settings } from 'lucide-react'
 
 interface EpisodeResult {
   id: string
@@ -12,12 +13,12 @@ interface EpisodeResult {
 }
 
 const PAGES = [
-  { id: 'dashboard', label: '📊 工作台', href: '/dashboard' },
-  { id: 'projects', label: '🎙️ 播客项目', href: '/projects' },
-  { id: 'episodes', label: '📋 我的作品', href: '/episodes' },
-  { id: 'create', label: '✨ 创建节目', href: '/create' },
-  { id: 'billing', label: '💳 账单中心', href: '/billing' },
-  { id: 'settings', label: '⚙️ 设置', href: '/settings' },
+  { id: 'dashboard', label: '工作台', href: '/dashboard', icon: LayoutDashboard },
+  { id: 'projects', label: '播客项目', href: '/projects', icon: Mic },
+  { id: 'episodes', label: '我的作品', href: '/episodes', icon: ListMusic },
+  { id: 'create', label: '创建节目', href: '/create', icon: Sparkles },
+  { id: 'billing', label: '账单中心', href: '/billing', icon: CreditCard },
+  { id: 'settings', label: '设置', href: '/settings', icon: Settings },
 ]
 
 export function CommandPalette() {
@@ -82,8 +83,9 @@ export function CommandPalette() {
                 <Command.Item
                   key={p.id}
                   onSelect={() => go(p.href)}
-                  className="flex cursor-pointer items-center rounded-md px-3 py-2 text-sm aria-selected:bg-muted"
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm aria-selected:bg-muted"
                 >
+                  <p.icon className="size-4 text-muted-foreground" />
                   {p.label}
                 </Command.Item>
               ))}

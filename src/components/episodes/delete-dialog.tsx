@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Trash2 } from 'lucide-react'
 
 interface Props {
   episodeId: string
@@ -48,7 +49,7 @@ export function DeleteDialog({ episodeId, episodeTitle, onDeleted, variant = 'bu
         className={variant === 'menu-item' ? 'w-full justify-start text-destructive' : 'text-destructive'}
         onClick={() => setConfirming(true)}
       >
-        🗑️ 删除
+        <Trash2 className="size-3.5" /> 删除
       </Button>
     )
   }

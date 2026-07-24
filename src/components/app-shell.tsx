@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Sidebar } from './sidebar'
 import { CommandPalette } from './command-palette'
 import { Button } from '@/components/ui/button'
+import { Menu, Headphones } from 'lucide-react'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -30,9 +31,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* 移动端顶栏 */}
         <div className="flex h-14 items-center border-b px-4 md:hidden">
           <Button variant="ghost" size="sm" onClick={() => setSidebarOpen(true)}>
-            ☰
+            <Menu className="size-5" />
           </Button>
-          <span className="ml-3 font-bold">🎧 PodCast AI</span>
+          <span className="ml-3 flex items-center gap-1.5 font-bold"><Headphones className="size-4" /> PodCast AI</span>
         </div>
         <div className="mx-auto max-w-6xl p-4 md:p-8">{children}</div>
       </main>

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ProjectActions } from '@/components/projects/project-actions'
+import { Sparkles } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -135,7 +136,7 @@ export default async function ProjectsPage({
           <p className="text-muted-foreground">按项目归集节目，方便管理系列内容</p>
         </div>
         <Link href="/create">
-          <Button size="lg">✨ 创建新节目</Button>
+          <Button size="lg"><Sparkles className="size-4" /> 创建新节目</Button>
         </Link>
       </div>
 
