@@ -118,7 +118,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
             value={projectId}
             onValueChange={(v) => onProjectIdChange(v || null)}
           >
-            <SelectTrigger className="w-full"><SelectValue placeholder="选择项目" /></SelectTrigger>
+            <SelectTrigger className="w-full"><SelectValue>{projects.find(p => p.id === projectId)?.name ?? '选择项目'}</SelectValue></SelectTrigger>
             <SelectContent>
               {projects.map(p => (
                 <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
@@ -133,7 +133,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
             value={String(params.duration_min)}
             onValueChange={(v) => update({ duration_min: Number(v) })}
           >
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger><SelectValue>{params.duration_min} 分钟</SelectValue></SelectTrigger>
             <SelectContent>
               <SelectItem value="5">5 分钟</SelectItem>
               <SelectItem value="10">10 分钟</SelectItem>
@@ -146,7 +146,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
         <div className="space-y-2">
           <Label>对话风格</Label>
           <Select value={params.style} onValueChange={(v) => update({ style: v ?? undefined })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger><SelectValue>{STYLES.find(s => s.value === params.style)?.label ?? '对话风格'}</SelectValue></SelectTrigger>
             <SelectContent>
               {STYLES.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
             </SelectContent>
@@ -157,7 +157,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
           <Label>角色数量</Label>
           {scriptRoles && scriptRoles.length > 0 ? (
             <Select value={String(scriptRoles.length)} disabled>
-              <SelectTrigger className="opacity-60"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="opacity-60"><SelectValue>{scriptRoles.length} 人（脚本角色）</SelectValue></SelectTrigger>
               <SelectContent>
                 <SelectItem value={String(scriptRoles.length)}>{scriptRoles.length} 人（脚本角色）</SelectItem>
               </SelectContent>
@@ -167,7 +167,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
               value={String(params.roles_count)}
               onValueChange={(v) => update({ roles_count: Number(v) })}
             >
-              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectTrigger><SelectValue>{params.roles_count} 人{params.roles_count === 1 ? '独白' : params.roles_count === 2 ? '对话' : '讨论'}</SelectValue></SelectTrigger>
               <SelectContent>
                 <SelectItem value="1">1 人独白</SelectItem>
                 <SelectItem value="2">2 人对话</SelectItem>
@@ -180,7 +180,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
         <div className="space-y-2">
           <Label>背景音乐</Label>
           <Select value={params.bgm} onValueChange={(v) => update({ bgm: v ?? undefined })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectTrigger><SelectValue>{BGM_OPTIONS.find(b => b.value === params.bgm)?.label ?? '背景音乐'}</SelectValue></SelectTrigger>
             <SelectContent>
               {BGM_OPTIONS.map(b => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
             </SelectContent>
@@ -208,7 +208,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
                     }}
                   >
                     <SelectTrigger className="w-40">
-                      <SelectValue placeholder="选择音色" />
+                      <SelectValue>{voices.find(v => v.id === voiceMapping[role])?.name ?? '选择音色'}</SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {voices.map(v => (
