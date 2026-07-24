@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { VoicePicker } from './voice-picker'
@@ -43,6 +44,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
   const [voices, setVoices] = useState<Voice[]>([])
   const [voiceMapping, setVoiceMapping] = useState<Record<string, string>>({})
   const [matching, setMatching] = useState(false)
+  const [playingVoice, setPlayingVoice] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/projects')
@@ -216,6 +218,34 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
                       ))}
                     </SelectContent>
                   </Select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0"
+                    disabled={!voiceMapping[role] || playingVoice === role}
+                    onClick={async (e) => {
+                      e.stopPropagation()
+                      const voiceId = voiceMapping[role]
+                      if (!voiceId) return
+                      setPlayingVoice(role)
+                      try {
+                        const res = await fetch(`/api/voices/${voiceId}/sample`, { method: 'POST' })
+                        const data = await res.json()
+                        if (data.sample_url) {
+                          const audio = new Audio(data.sample_url)
+                          audio.onended = () => setPlayingVoice(null)
+                          audio.play()
+                        } else {
+                          setPlayingVoice(null)
+                        }
+                      } catch {
+                        setPlayingVoice(null)
+                      }
+                    }}
+                  >
+                    {playingVoice === role ? '⏳' : '▶️'}
+                  </Button>
                 </div>
               ))}
             </div>

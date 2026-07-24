@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from './theme-toggle'
 
 const navItems = [
   { href: '/dashboard', label: '工作台', icon: '📊' },
@@ -15,7 +16,11 @@ const navItems = [
   { href: '/settings', label: '设置', icon: '⚙️' },
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  onNavigate?: () => void
+}
+
+export function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createClient()
@@ -35,7 +40,7 @@ export function Sidebar() {
       </div>
       <nav className="flex-1 space-y-1 p-4">
         {navItems.map((item) => (
-          <Link key={item.href} href={item.href}>
+          <Link key={item.href} href={item.href} onClick={onNavigate}>
             <Button
               variant={pathname === item.href ? 'secondary' : 'ghost'}
               className={cn(
@@ -49,7 +54,8 @@ export function Sidebar() {
           </Link>
         ))}
       </nav>
-      <div className="border-t p-4">
+      <div className="border-t p-4 space-y-1">
+        <ThemeToggle />
         <Button variant="ghost" className="w-full justify-start gap-3 text-muted-foreground" onClick={handleLogout}>
           <span>🚪</span>
           退出登录

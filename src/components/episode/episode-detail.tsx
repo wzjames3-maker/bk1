@@ -80,6 +80,23 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
   const canRetry = episode.status === 'failed'
   const canRegenerate = episode.status === 'completed' || episode.status === 'failed'
   const [regenerating, setRegenerating] = useState(false)
+  const [shareLoading, setShareLoading] = useState(false)
+
+  const handleShare = async () => {
+    setShareLoading(true)
+    try {
+      const res = await fetch(`/api/episodes/${episode.id}/share`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '生成链接失败')
+      const url = `${window.location.origin}/share/${data.share_token}`
+      await navigator.clipboard.writeText(url)
+      toast.success('分享链接已复制到剪贴板')
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setShareLoading(false)
+    }
+  }
 
   const handleRegenerate = async () => {
     setRegenerating(true)
@@ -192,6 +209,11 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
           {canRegenerate && (
             <Button variant="outline" onClick={handleRegenerate} disabled={regenerating}>
               {regenerating ? '生成中...' : '🔄 重新生成'}
+            </Button>
+          )}
+          {episode.status === 'completed' && (
+            <Button size="sm" variant="outline" onClick={handleShare} disabled={shareLoading}>
+              {shareLoading ? '生成中...' : '🔗 分享'}
             </Button>
           )}
           <DeleteDialog

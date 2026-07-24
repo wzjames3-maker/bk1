@@ -7,6 +7,9 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import type { ScriptSegment } from '@/types/database'
 
+const MIN_CHARS = 50
+const MAX_CHARS = 10000
+
 interface Props {
   segments: ScriptSegment[]
   onSegmentsChange: (segments: ScriptSegment[]) => void
@@ -122,10 +125,16 @@ export function ScriptInput({ segments, onSegmentsChange, polishEnabled, onPolis
             onSegmentsChange([])
           }}
         />
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>{rawText.length > 0 && rawText.length < MIN_CHARS ? `至少 ${MIN_CHARS} 字` : ''}</span>
+          <span className={rawText.length > MAX_CHARS ? 'text-destructive' : ''}>
+            {rawText.length} / {MAX_CHARS}
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">
-        <Button variant="outline" size="sm" onClick={handleParse} disabled={!rawText.trim() || parsing}>
+        <Button variant="outline" size="sm" onClick={handleParse} disabled={!rawText.trim() || parsing || rawText.length < MIN_CHARS || rawText.length > MAX_CHARS}>
           {parsing ? 'AI 解析中...' : '解析预览'}
         </Button>
         <label className="cursor-pointer inline-flex">
@@ -135,6 +144,10 @@ export function ScriptInput({ segments, onSegmentsChange, polishEnabled, onPolis
           </span>
         </label>
       </div>
+
+      {rawText.length > MAX_CHARS && (
+        <p className="text-sm text-destructive">脚本超过 {MAX_CHARS} 字上限，请精简内容</p>
+      )}
 
       {parseError && (
         <p className="text-sm text-destructive">{parseError}</p>

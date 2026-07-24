@@ -53,6 +53,46 @@ export function EpisodeList() {
   const [total, setTotal] = useState(0)
   const [regenerating, setRegenerating] = useState<string | null>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkLoading, setBulkLoading] = useState(false)
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selected.size === episodes.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(episodes.map(ep => ep.id)))
+    }
+  }
+
+  const handleBulk = async (action: 'delete' | 'regenerate') => {
+    if (selected.size === 0) return
+    setBulkLoading(true)
+    try {
+      const res = await fetch('/api/episodes/bulk', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, ids: [...selected] }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '操作失败')
+      toast.success(action === 'delete' ? `已删除 ${data.deleted} 期` : `已触发 ${data.regenerated} 期重新生成`)
+      setSelected(new Set())
+      fetchEpisodes()
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setBulkLoading(false)
+    }
+  }
 
   const fetchEpisodes = useCallback(async () => {
     setLoading(true)
@@ -130,8 +170,30 @@ export function EpisodeList() {
             {f.label}
           </Button>
         ))}
+        <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={episodes.length > 0 && selected.size === episodes.length}
+            onChange={toggleSelectAll}
+            className="size-4 rounded border-input"
+          />
+          全选
+        </label>
         <span className="ml-auto text-sm text-muted-foreground">共 {total} 期</span>
       </div>
+
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 rounded-md border bg-muted/50 px-4 py-2">
+          <span className="text-sm font-medium">已选 {selected.size} 期</span>
+          <Button size="sm" variant="outline" disabled={bulkLoading} onClick={() => handleBulk('regenerate')}>
+            🔄 批量重新生成
+          </Button>
+          <Button size="sm" variant="destructive" disabled={bulkLoading} onClick={() => handleBulk('delete')}>
+            🗑️ 批量删除
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>取消选择</Button>
+        </div>
+      )}
 
       {/* List */}
       {loading ? (
@@ -171,6 +233,12 @@ export function EpisodeList() {
             return (
               <Card key={ep.id} className="transition-colors hover:bg-muted/30">
                 <CardContent className="flex items-center gap-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(ep.id)}
+                    onChange={() => toggleSelect(ep.id)}
+                    className="size-4 shrink-0 rounded border-input"
+                  />
                   <Link href={`/episodes/${ep.id}`} className="min-w-0 flex-1">
                     <p className="truncate font-medium">{ep.title || ep.topic || '未命名节目'}</p>
                     <p className="text-xs text-muted-foreground">
