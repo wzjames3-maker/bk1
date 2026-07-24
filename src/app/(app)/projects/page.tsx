@@ -79,10 +79,17 @@ async function ensureDefaultProjectAction() {
   revalidatePath('/dashboard')
 }
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const { q } = await searchParams
+  const keyword = q?.trim() || ''
 
   const [{ data: projects }, { data: episodes }] = await Promise.all([
     supabase
@@ -97,8 +104,20 @@ export default async function ProjectsPage() {
       .order('created_at', { ascending: false }),
   ])
 
-  const allProjects = projects || []
-  const allEpisodes = episodes || []
+  let allProjects = projects || []
+  let allEpisodes = episodes || []
+
+  // 模糊搜索：同时过滤项目和节目
+  if (keyword) {
+    const kw = keyword.toLowerCase()
+    allProjects = allProjects.filter(
+      p => p.name.toLowerCase().includes(kw) || (p.description || '').toLowerCase().includes(kw)
+    )
+    allEpisodes = allEpisodes.filter(
+      ep => (ep.title || '').toLowerCase().includes(kw) || ep.topic.toLowerCase().includes(kw)
+    )
+  }
+
   const unassigned = allEpisodes.filter(ep => !ep.project_id)
 
   const episodeCountByProject = allEpisodes.reduce<Record<string, number>>((acc, ep) => {
@@ -118,6 +137,22 @@ export default async function ProjectsPage() {
           <Button size="lg">✨ 创建新节目</Button>
         </Link>
       </div>
+
+      {/* 搜索栏 */}
+      <form method="GET" action="/projects" className="flex gap-2">
+        <Input
+          name="q"
+          placeholder="搜索项目或节目..."
+          defaultValue={keyword}
+          className="max-w-xs"
+        />
+        <Button type="submit" variant="outline">搜索</Button>
+        {keyword && (
+          <Link href="/projects">
+            <Button type="button" variant="ghost">清除</Button>
+          </Link>
+        )}
+      </form>
 
       <Card>
         <CardHeader className="pb-2">
