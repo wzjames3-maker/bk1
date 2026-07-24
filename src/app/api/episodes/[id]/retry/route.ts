@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { preCharge } from '@/lib/services/billing'
 import type { PipelineStep } from '@/types/pipeline'
 
 export async function POST(
@@ -15,7 +16,7 @@ export async function POST(
   const admin = createAdminClient()
   const { data: episode } = await admin
     .from('episodes')
-    .select('id, status, failed_at_step, user_id')
+    .select('id, status, failed_at_step, user_id, estimated_cost, refunded_at')
     .eq('id', id)
     .single()
 
@@ -25,6 +26,19 @@ export async function POST(
 
   if (episode.status !== 'failed' || !episode.failed_at_step) {
     return NextResponse.json({ error: 'Episode is not in failed state' }, { status: 400 })
+  }
+
+  // 如果之前已退款，重试前重新扣费
+  if (episode.refunded_at && episode.estimated_cost) {
+    const charged = await preCharge(user.id, Number(episode.estimated_cost), id)
+    if (!charged) {
+      return NextResponse.json({ error: '余额不足，无法重试' }, { status: 402 })
+    }
+    // 清除退款标记，允许再次失败时退款
+    await admin
+      .from('episodes')
+      .update({ refunded_at: null })
+      .eq('id', id)
   }
 
   const retryStep = episode.failed_at_step as PipelineStep
