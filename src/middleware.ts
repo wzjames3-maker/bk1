@@ -10,9 +10,9 @@ export async function middleware(request: NextRequest) {
     const authCookie = request.cookies.get('sb-jsvlhnrlgmbcozqncbyo-auth-token')
     // 使用 cookie 值的简单哈希作为用户标识（避免 JWT 前缀相同导致共享桶）
     const raw = authCookie?.value || ''
-    const identifier = raw
-      ? raw.slice(-32) // 取 JWT 签名部分（末尾唯一）
-      : request.headers.get('x-forwarded-for') || 'anonymous'
+    const forwarded = request.headers.get('x-forwarded-for')
+    const ip = forwarded?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'anonymous'
+    const identifier = raw ? raw.slice(-32) : ip
 
     const result = await rateLimit(`api:${identifier}`, 30, 60_000)
 

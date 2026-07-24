@@ -106,6 +106,8 @@ export function CreateWizard() {
             type: m.type,
             url: m.url || m.path || '',
             text: m.text,
+            name: m.name,
+            content_type: m.content_type,
           })) : [],
           script: mode === 'script' ? segments : undefined,
           params: {

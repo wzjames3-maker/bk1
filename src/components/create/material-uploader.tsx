@@ -14,6 +14,7 @@ export interface MaterialItem {
   url?: string       // 原始 URL
   text?: string      // 直接文本
   size?: number
+  content_type?: string  // MIME type (file)
   status: 'uploading' | 'ready' | 'error'
 }
 
@@ -53,7 +54,7 @@ export function MaterialUploader({ materials, onChange }: Props) {
 
         onChange(materialsRef.current.map(m =>
           m.name === file.name && m.status === 'uploading'
-            ? { ...m, path: data.path, status: 'ready' as const }
+            ? { ...m, path: data.path, content_type: data.content_type, status: 'ready' as const }
             : m
         ))
       } catch {

@@ -36,26 +36,32 @@ export async function rateLimit(
     return { allowed: true, remaining: limit, resetMs: windowMs }
   }
 
-  const now = Date.now()
-  const windowStart = now - windowMs
-  const redisKey = `ratelimit:${key}`
+  try {
+    const now = Date.now()
+    const windowStart = now - windowMs
+    const redisKey = `ratelimit:${key}`
 
-  // 移除窗口外的旧记录
-  await client.zremrangebyscore(redisKey, 0, windowStart)
+    // 移除窗口外的旧记录
+    await client.zremrangebyscore(redisKey, 0, windowStart)
 
-  // 当前窗口内的请求数
-  const count = await client.zcard(redisKey)
+    // 当前窗口内的请求数
+    const count = await client.zcard(redisKey)
 
-  if (count >= limit) {
-    const oldest = await client.zrange(redisKey, 0, 0, { withScores: true })
-    const oldestScore = oldest.length >= 2 ? Number(oldest[1]) : now
-    const resetMs = oldestScore + windowMs - now
-    return { allowed: false, remaining: 0, resetMs: Math.max(resetMs, 1000) }
+    if (count >= limit) {
+      const oldest = await client.zrange(redisKey, 0, 0, { withScores: true })
+      const oldestScore = oldest.length >= 2 ? Number(oldest[1]) : now
+      const resetMs = oldestScore + windowMs - now
+      return { allowed: false, remaining: 0, resetMs: Math.max(resetMs, 1000) }
+    }
+
+    // 添加当前请求
+    await client.zadd(redisKey, { score: now, member: `${now}-${Math.random()}` })
+    await client.expire(redisKey, Math.ceil(windowMs / 1000) + 1)
+
+    return { allowed: true, remaining: limit - count - 1, resetMs: windowMs }
+  } catch (err) {
+    // Redis 瞬时故障时 fail-open，不影响 API 可用性
+    console.error('[rate-limit] Redis error, failing open:', err)
+    return { allowed: true, remaining: limit, resetMs: windowMs }
   }
-
-  // 添加当前请求
-  await client.zadd(redisKey, { score: now, member: `${now}-${Math.random()}` })
-  await client.expire(redisKey, Math.ceil(windowMs / 1000) + 1)
-
-  return { allowed: true, remaining: limit - count - 1, resetMs: windowMs }
 }
