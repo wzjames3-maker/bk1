@@ -79,6 +79,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
   // 脚本模式：调用 LLM 音色匹配（仅一次）
   useEffect(() => {
     if (!scriptRoles || scriptRoles.length === 0) return
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMatching(true)
     fetch('/api/voices/match', {
       method: 'POST',
