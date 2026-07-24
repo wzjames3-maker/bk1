@@ -33,6 +33,7 @@ export async function POST(
     .from('episodes')
     .update({ share_token: token })
     .eq('id', id)
+    .eq('user_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

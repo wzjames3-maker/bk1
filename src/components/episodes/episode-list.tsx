@@ -188,7 +188,7 @@ export function EpisodeList() {
           <Button size="sm" variant="outline" disabled={bulkLoading} onClick={() => handleBulk('regenerate')}>
             🔄 批量重新生成
           </Button>
-          <Button size="sm" variant="destructive" disabled={bulkLoading} onClick={() => handleBulk('delete')}>
+          <Button size="sm" variant="destructive" disabled={bulkLoading} onClick={() => { if (confirm(`确定删除选中的 ${selected.size} 期节目？此操作不可恢复。`)) handleBulk('delete') }}>
             🗑️ 批量删除
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>取消选择</Button>

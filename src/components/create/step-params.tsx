@@ -235,7 +235,8 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
                         if (data.sample_url) {
                           const audio = new Audio(data.sample_url)
                           audio.onended = () => setPlayingVoice(null)
-                          audio.play()
+                          audio.onerror = () => setPlayingVoice(null)
+                          audio.play().catch(() => setPlayingVoice(null))
                         } else {
                           setPlayingVoice(null)
                         }
