@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { DeleteDialog } from './delete-dialog'
 
 interface EpisodeItem {
@@ -44,16 +45,19 @@ export function EpisodeList() {
   const [episodes, setEpisodes] = useState<EpisodeItem[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
   const [regenerating, setRegenerating] = useState<string | null>(null)
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
 
   const fetchEpisodes = useCallback(async () => {
     setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page) })
       if (filter !== 'all') params.set('status', filter)
+      if (search.trim()) params.set('q', search.trim())
       const res = await fetch(`/api/episodes?${params}`)
       const data = await res.json()
       setEpisodes(data.episodes || [])
@@ -64,7 +68,7 @@ export function EpisodeList() {
     } finally {
       setLoading(false)
     }
-  }, [filter, page])
+  }, [filter, page, search])
 
   useEffect(() => {
     fetchEpisodes()
@@ -91,7 +95,20 @@ export function EpisodeList() {
   return (
     <div className="space-y-4">
       {/* Filter bar */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <Input
+          placeholder="搜索标题或话题..."
+          className="h-8 w-48"
+          defaultValue=""
+          onChange={(e) => {
+            const v = e.target.value
+            if (debounceRef.current) clearTimeout(debounceRef.current)
+            debounceRef.current = setTimeout(() => {
+              setSearch(v)
+              setPage(1)
+            }, 300)
+          }}
+        />
         {FILTERS.map(f => (
           <Button
             key={f.value}

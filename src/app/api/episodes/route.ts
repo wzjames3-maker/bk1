@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
+  const q = searchParams.get('q')?.trim()
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
   const pageSize = 20
   const from = (page - 1) * pageSize
@@ -21,6 +22,10 @@ export async function GET(request: NextRequest) {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
     .range(from, to)
+
+  if (q) {
+    query = query.or(`title.ilike.%${q}%,topic.ilike.%${q}%`)
+  }
 
   if (status === 'completed') {
     query = query.eq('status', 'completed')
