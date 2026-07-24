@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 const navItems = [
   { href: '/dashboard', label: '工作台', icon: '📊' },
   { href: '/projects', label: '播客项目', icon: '🎙️' },
+  { href: '/episodes', label: '我的作品', icon: '📋' },
   { href: '/create', label: '创建节目', icon: '✨' },
   { href: '/billing', label: '账单中心', icon: '💳' },
   { href: '/settings', label: '设置', icon: '⚙️' },

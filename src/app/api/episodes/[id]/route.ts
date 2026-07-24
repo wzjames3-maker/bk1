@@ -91,12 +91,35 @@ export async function DELETE(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { data: episode } = await supabase
+    .from('episodes')
+    .select('id, user_id')
+    .eq('id', id)
+    .single()
+
+  if (!episode || episode.user_id !== user.id) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
   const { error } = await supabase
     .from('episodes')
     .delete()
     .eq('id', id)
-    .eq('user_id', user.id)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Async cleanup of storage audio files (non-blocking)
+  const prefix = `${user.id}/episodes/${id}/`
+  supabase.storage
+    .from('audio')
+    .list(prefix)
+    .then(({ data: files }) => {
+      if (files && files.length > 0) {
+        const paths = files.map(f => `${prefix}${f.name}`)
+        supabase.storage.from('audio').remove(paths).catch(() => {})
+      }
+    })
+    .catch(() => {})
+
   return NextResponse.json({ success: true })
 }

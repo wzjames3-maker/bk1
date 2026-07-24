@@ -9,19 +9,38 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
-  const projectId = searchParams.get('project_id')
+  const status = searchParams.get('status')
+  const page = Math.max(1, Number(searchParams.get('page')) || 1)
+  const pageSize = 20
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
 
   let query = supabase
     .from('episodes')
-    .select('*')
+    .select('id, title, topic, status, created_at, audio_url, estimated_cost, completed_at', { count: 'exact' })
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
+    .range(from, to)
 
-  if (projectId) query = query.eq('project_id', projectId)
+  if (status === 'completed') {
+    query = query.eq('status', 'completed')
+  } else if (status === 'failed') {
+    query = query.eq('status', 'failed')
+  } else if (status === 'processing') {
+    query = query.in('status', ['pending', 'parsing', 'scripting', 'confirming', 'tts_processing', 'mixing', 'post_processing'])
+  }
 
-  const { data, error } = await query
+  const { data: episodes, error, count } = await query
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+
+  return NextResponse.json({
+    episodes: episodes || [],
+    total: count || 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((count || 0) / pageSize),
+  })
 }
 
 export async function POST(request: NextRequest) {

@@ -10,6 +10,7 @@ import { AudioPlayer } from './audio-player'
 import { ScriptViewer } from './script-viewer'
 import { ScriptEditor } from './script-editor'
 import { ShowNotes } from './show-notes'
+import { DeleteDialog } from '@/components/episodes/delete-dialog'
 import { useEpisodeRealtime } from '@/lib/hooks/use-episode-realtime'
 import type { Episode, EpisodeStep, ScriptSegment } from '@/types/database'
 
@@ -76,6 +77,23 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
   const canEdit = episode.status === 'script_ready'
   const canConfirm = episode.status === 'script_ready'
   const canRetry = episode.status === 'failed'
+  const canRegenerate = episode.status === 'completed' || episode.status === 'failed'
+  const [regenerating, setRegenerating] = useState(false)
+
+  const handleRegenerate = async () => {
+    setRegenerating(true)
+    try {
+      const res = await fetch(`/api/episodes/${episode.id}/regenerate`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '重新生成失败')
+      router.push(`/episodes/${data.id}`)
+    } catch (e) {
+      alert((e as Error).message)
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   const rewriteCount =
     rewriteCountLocal ?? Number(episode.params?.rewrite_count || 0)
   const rewriteDisabled = rewriting || rewriteCount >= REWRITE_LIMIT
@@ -167,6 +185,15 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
           {canRetry && (
             <Button variant="outline" onClick={handleRetry}>重试</Button>
           )}
+          {canRegenerate && (
+            <Button variant="outline" onClick={handleRegenerate} disabled={regenerating}>
+              {regenerating ? '生成中...' : '🔄 重新生成'}
+            </Button>
+          )}
+          <DeleteDialog
+            episodeId={episode.id}
+            episodeTitle={episode.title || episode.topic || '未命名节目'}
+          />
         </div>
       </div>
 
