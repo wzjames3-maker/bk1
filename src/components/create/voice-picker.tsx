@@ -54,9 +54,7 @@ export function VoicePicker({ selected, onChange, maxCount }: Props) {
                 {isSelected && <Badge variant="default">已选</Badge>}
               </div>
               <p className="text-sm text-muted-foreground mt-1">{voice.style}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {voice.provider === 'aliyun' ? '阿里云' : 'MiMo'}
-              </p>
+              <p className="text-xs text-muted-foreground mt-1">MiMo</p>
               {voice.sample_url && (
                 <audio
                   src={voice.sample_url}

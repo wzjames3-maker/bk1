@@ -79,7 +79,7 @@ export interface Voice {
   name: string
   gender: 'male' | 'female'
   style: string
-  provider: 'aliyun' | 'mimo'
+  provider: 'mimo'
   provider_voice_id: string
   sample_url: string | null
   is_active: boolean

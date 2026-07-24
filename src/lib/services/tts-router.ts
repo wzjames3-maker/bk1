@@ -1,4 +1,3 @@
-import { synthesizeAliyun } from './tts-aliyun'
 import { synthesizeMimo } from './tts-mimo'
 import { createAdminClient } from '@/lib/supabase/admin'
 
@@ -20,10 +19,6 @@ export async function synthesizeSegment(
     .single()
 
   if (!voice) throw new Error(`Voice not found: ${voiceDbId}`)
-
-  if (voice.provider === 'aliyun') {
-    return synthesizeAliyun({ text, voiceId: voice.provider_voice_id })
-  }
 
   if (voice.provider === 'mimo') {
     return synthesizeMimo({ text, voiceId: voice.provider_voice_id })

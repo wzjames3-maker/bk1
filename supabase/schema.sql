@@ -104,7 +104,7 @@ create table voices (
   name text not null,
   gender text not null check (gender in ('male','female')),
   style text not null,
-  provider text not null check (provider in ('aliyun','mimo')),
+  provider text not null check (provider in ('mimo')),
   provider_voice_id text not null,
   sample_url text,
   is_active boolean not null default true
