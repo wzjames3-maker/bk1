@@ -28,17 +28,26 @@ export async function POST(
     return NextResponse.json({ error: 'Episode is not in failed state' }, { status: 400 })
   }
 
-  // 如果之前已退款，重试前重新扣费
+  // 如果之前已退款，重试前重新扣费（原子清除标记防止并发重复扣费）
   if (episode.refunded_at && episode.estimated_cost) {
-    const charged = await preCharge(user.id, Number(episode.estimated_cost), id)
-    if (!charged) {
-      return NextResponse.json({ error: '余额不足，无法重试' }, { status: 402 })
-    }
-    // 清除退款标记，允许再次失败时退款
-    await admin
+    const { data: cleared } = await admin
       .from('episodes')
       .update({ refunded_at: null })
       .eq('id', id)
+      .not('refunded_at', 'is', null)
+      .select('id')
+
+    if (cleared && cleared.length > 0) {
+      const charged = await preCharge(user.id, Number(episode.estimated_cost), id)
+      if (!charged) {
+        // 扣费失败，恢复退款标记
+        await admin
+          .from('episodes')
+          .update({ refunded_at: new Date().toISOString() })
+          .eq('id', id)
+        return NextResponse.json({ error: '余额不足，无法重试' }, { status: 402 })
+      }
+    }
   }
 
   const retryStep = episode.failed_at_step as PipelineStep
