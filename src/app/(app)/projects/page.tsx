@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ProjectActions } from '@/components/projects/project-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -224,10 +225,20 @@ export default async function ProjectsPage({
               return (
                 <Card key={project.id}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {project.description || '暂无简介'} · {count} 期节目
-                    </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <CardTitle className="text-lg">{project.name}</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          {project.description || '暂无简介'} · {count} 期节目
+                        </p>
+                      </div>
+                      <ProjectActions
+                        projectId={project.id}
+                        projectName={project.name}
+                        projectDescription={project.description}
+                        episodeCount={count}
+                      />
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {projectEpisodes.length === 0 ? (

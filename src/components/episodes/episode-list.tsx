@@ -76,6 +76,14 @@ export function EpisodeList() {
     fetchEpisodes()
   }, [fetchEpisodes])
 
+  // 有进行中的节目时自动刷新（5s 轮询）
+  const hasProcessing = episodes.some(ep => !['completed', 'failed'].includes(ep.status))
+  useEffect(() => {
+    if (!hasProcessing) return
+    const timer = setInterval(() => fetchEpisodes(), 5000)
+    return () => clearInterval(timer)
+  }, [hasProcessing, fetchEpisodes])
+
   const handleRegenerate = async (id: string) => {
     setRegenerating(id)
     try {

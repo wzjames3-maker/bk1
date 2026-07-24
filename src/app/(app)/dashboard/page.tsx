@@ -3,6 +3,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 
+const STATUS_LABEL: Record<string, string> = {
+  pending: '等待中',
+  parsing: '解析中',
+  scripting: '编剧中',
+  script_ready: '待确认',
+  confirming: '确认中',
+  tts_processing: '合成中',
+  mixing: '混音中',
+  post_processing: '后处理',
+  completed: '已完成',
+  failed: '失败',
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -81,7 +94,7 @@ export default async function DashboardPage() {
                       </p>
                     </div>
                     <span className="shrink-0 text-sm text-muted-foreground">
-                      {ep.status === 'completed' ? '已完成' : ep.status}
+                      {STATUS_LABEL[ep.status] || ep.status}
                       {ep.audio_url ? ' · 有音频' : ''}
                     </span>
                   </CardContent>
