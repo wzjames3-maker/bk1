@@ -175,6 +175,7 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
         previewUrl={episode.preview_url}
         chapters={chapters}
         status={episode.status}
+        title={episode.title || episode.topic}
       />
 
       <Tabs defaultValue="progress">

@@ -14,6 +14,7 @@ interface Props {
   previewUrl: string | null
   chapters: Chapter[]
   status: string
+  title?: string
 }
 
 function timeToSeconds(time: string): number {
@@ -29,7 +30,7 @@ function formatTime(seconds: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export function AudioPlayer({ audioUrl, previewUrl, chapters, status }: Props) {
+export function AudioPlayer({ audioUrl, previewUrl, chapters, status, title }: Props) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
@@ -134,9 +135,23 @@ export function AudioPlayer({ audioUrl, previewUrl, chapters, status }: Props) {
             </span>
           </div>
 
-          {!audioUrl && previewUrl && (
-            <span className="text-xs text-muted-foreground">试听片段（30s）</span>
-          )}
+          <div className="flex items-center gap-2">
+            {!audioUrl && previewUrl && (
+              <span className="text-xs text-muted-foreground">试听片段（30s）</span>
+            )}
+            {audioUrl && status === 'completed' && (
+              <a
+                href={audioUrl}
+                download={`${title || '播客'}.mp3`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button size="sm" variant="outline">
+                  ⬇️ 下载音频
+                </Button>
+              </a>
+            )}
+          </div>
         </div>
 
         {/* 章节列表 */}
