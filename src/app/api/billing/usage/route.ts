@@ -7,23 +7,43 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
-  const limit = Math.min(Math.max(parseInt(searchParams.get('limit') || '50') || 50, 1), 200)
+  const page = Math.max(1, Number(searchParams.get('page')) || 1)
+  const pageSize = 20
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
 
-  // 交易记录
-  const { data: transactions } = await supabase
+  // 日期筛选
+  const startDate = searchParams.get('start_date') // YYYY-MM-DD
+  const endDate = searchParams.get('end_date')     // YYYY-MM-DD
+  // 类型筛选（transactions）
+  const txType = searchParams.get('type') // charge | refund | topup
+
+  // 交易记录（分页 + 日期 + 类型）
+  let txQuery = supabase
     .from('transactions')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .range(from, to)
 
-  // 用量明细
-  const { data: usage } = await supabase
+  if (startDate) txQuery = txQuery.gte('created_at', `${startDate}T00:00:00`)
+  if (endDate) txQuery = txQuery.lte('created_at', `${endDate}T23:59:59`)
+  if (txType) txQuery = txQuery.eq('type', txType)
+
+  const { data: transactions, count: txTotal } = await txQuery
+
+  // 用量明细（分页 + 日期）
+  let usageQuery = supabase
     .from('usage_logs')
-    .select('*')
+    .select('*', { count: 'exact' })
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-    .limit(limit)
+    .range(from, to)
+
+  if (startDate) usageQuery = usageQuery.gte('created_at', `${startDate}T00:00:00`)
+  if (endDate) usageQuery = usageQuery.lte('created_at', `${endDate}T23:59:59`)
+
+  const { data: usage, count: usageTotal } = await usageQuery
 
   // 当前余额
   const { data: profile } = await supabase
@@ -35,6 +55,10 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     balance: profile?.balance ?? 0,
     transactions: transactions || [],
+    txTotal: txTotal || 0,
     usage: usage || [],
+    usageTotal: usageTotal || 0,
+    page,
+    pageSize,
   })
 }
