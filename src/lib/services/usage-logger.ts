@@ -15,11 +15,15 @@ export async function logLlmUsage(
   const totalTokens = promptTokens + completionTokens
   const cost = llmTokenCost(totalTokens)
 
-  await admin.from('usage_logs').insert({
+  const { error } = await admin.from('usage_logs').insert({
     user_id: userId,
     episode_id: episodeId || null,
     type: 'llm_token',
     quantity: totalTokens,
     cost,
   })
+
+  if (error) {
+    console.error('[usage-logger] failed to log usage:', error.message)
+  }
 }
