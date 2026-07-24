@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -86,9 +87,10 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
       const res = await fetch(`/api/episodes/${episode.id}/regenerate`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '重新生成失败')
+      toast.success('已开始重新生成')
       router.push(`/episodes/${data.id}`)
     } catch (e) {
-      alert((e as Error).message)
+      toast.error((e as Error).message)
     } finally {
       setRegenerating(false)
     }
@@ -107,7 +109,7 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
       }
       router.refresh()
     } catch (e) {
-      alert((e as Error).message)
+      toast.error((e as Error).message)
     }
   }
 
@@ -124,11 +126,12 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || '保存失败')
+      toast.error(data.error || '保存失败')
       return
     }
     setScriptOverride(newScript)
     setEditing(false)
+    toast.success('脚本已保存')
     router.refresh()
   }
 
@@ -145,9 +148,10 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
       setScriptOverride(data.script)
       setRewriteCountLocal(data.rewrite_count)
       setEditing(true)
+      toast.success('AI 润色完成')
       router.refresh()
     } catch (e) {
-      alert((e as Error).message)
+      toast.error((e as Error).message)
     } finally {
       setRewriting(false)
     }

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 
 interface Props {
@@ -25,6 +26,7 @@ export function DeleteDialog({ episodeId, episodeTitle, onDeleted, variant = 'bu
         throw new Error(data.error || '删除失败')
       }
       setConfirming(false)
+      toast.success('节目已删除')
       if (onDeleted) {
         onDeleted()
       } else {
@@ -32,7 +34,7 @@ export function DeleteDialog({ episodeId, episodeTitle, onDeleted, variant = 'bu
         router.refresh()
       }
     } catch (e) {
-      alert((e as Error).message)
+      toast.error((e as Error).message)
     } finally {
       setDeleting(false)
     }

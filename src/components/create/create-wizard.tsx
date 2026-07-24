@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { StepMaterials } from './step-materials'
@@ -128,7 +129,7 @@ export function CreateWizard() {
       router.push(`/episodes/${data.id}`)
       router.refresh()
     } catch (err) {
-      alert((err as Error).message)
+      toast.error((err as Error).message)
       setSubmitting(false)
     }
   }

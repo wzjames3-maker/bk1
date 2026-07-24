@@ -3,10 +3,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Skeleton } from '@/components/ui/skeleton'
 import { DeleteDialog } from './delete-dialog'
 
 interface EpisodeItem {
@@ -80,9 +82,10 @@ export function EpisodeList() {
       const res = await fetch(`/api/episodes/${id}/regenerate`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '重新生成失败')
+      toast.success('已开始重新生成')
       router.push(`/episodes/${data.id}`)
     } catch (e) {
-      alert((e as Error).message)
+      toast.error((e as Error).message)
     } finally {
       setRegenerating(null)
     }
@@ -124,9 +127,35 @@ export function EpisodeList() {
 
       {/* List */}
       {loading ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">加载中...</CardContent></Card>
+        <div className="space-y-2">
+          {[...Array(5)].map((_, i) => (
+            <Card key={i}>
+              <CardContent className="flex items-center gap-4 py-3">
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-2/5" />
+                  <Skeleton className="h-3 w-1/4" />
+                </div>
+                <Skeleton className="h-5 w-14 rounded-full" />
+                <Skeleton className="h-8 w-24" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : episodes.length === 0 ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">暂无节目</CardContent></Card>
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+            <span className="text-4xl">🎙️</span>
+            <p className="font-medium">{search ? `没有找到与「${search}」相关的节目` : '还没有节目'}</p>
+            <p className="text-sm text-muted-foreground">
+              {search ? '试试其他关键词，或清除搜索条件' : '点击下方按钮，开始制作你的第一期播客'}
+            </p>
+            {!search && (
+              <Link href="/create">
+                <Button className="mt-2">✨ 创建新节目</Button>
+              </Link>
+            )}
+          </CardContent>
+        </Card>
       ) : (
         <div className="space-y-2">
           {episodes.map(ep => {

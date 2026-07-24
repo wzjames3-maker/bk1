@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const { path, size } = await uploadMaterial(user.id, file)
-    return NextResponse.json({ path, name: file.name, size })
+    return NextResponse.json({ path, name: file.name, size, content_type: file.type })
   } catch (err) {
     return NextResponse.json(
       { error: (err as Error).message },

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -66,7 +67,7 @@ export function ScriptEditor({
   const handleRewriteSegment = async (index: number) => {
     if (!episodeId) return
     if (isDirty) {
-      alert('请先保存脚本后再使用 AI 重写，避免覆盖未保存的修改')
+      toast.warning('请先保存脚本后再使用 AI 重写，避免覆盖未保存的修改')
       return
     }
     setRewritingIndex(index)
@@ -82,7 +83,7 @@ export function ScriptEditor({
       setIsDirty(false)
       onScriptReplaced?.(data.script, data.rewrite_count)
     } catch (e) {
-      alert((e as Error).message)
+      toast.error((e as Error).message)
     } finally {
       setRewritingIndex(null)
     }
