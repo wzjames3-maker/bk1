@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { preCharge } from '@/lib/services/billing'
 import { estimateCost } from '@/lib/services/cost'
+import { Redis } from '@upstash/redis'
 
 export async function POST(
   request: NextRequest,
@@ -29,6 +30,18 @@ export async function POST(
       { error: '只能对已完成或失败的节目重新生成' },
       { status: 400 }
     )
+  }
+
+  // 幂等保护：防止同一源 episode 并发重新生成导致重复扣费
+  const redisUrl = process.env.UPSTASH_REDIS_URL
+  const redisToken = process.env.UPSTASH_REDIS_TOKEN
+  if (redisUrl && redisToken && !redisUrl.includes('placeholder')) {
+    const redis = new Redis({ url: redisUrl, token: redisToken })
+    const lockKey = `regen_lock:${id}`
+    const acquired = await redis.set(lockKey, '1', { nx: true, ex: 30 })
+    if (!acquired) {
+      return NextResponse.json({ error: '重新生成已在进行中，请勿重复操作' }, { status: 409 })
+    }
   }
 
   const srcParams = source.params as Record<string, unknown>

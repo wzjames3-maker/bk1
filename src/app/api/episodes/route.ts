@@ -24,7 +24,9 @@ export async function GET(request: NextRequest) {
     .range(from, to)
 
   if (q) {
-    query = query.or(`title.ilike.%${q}%,topic.ilike.%${q}%`)
+    // 转义 PostgREST 特殊字符防止过滤器注入
+    const escaped = q.replace(/[,()\\%]/g, '\\$&')
+    query = query.or(`title.ilike.%${escaped}%,topic.ilike.%${escaped}%`)
   }
 
   if (status === 'completed') {
