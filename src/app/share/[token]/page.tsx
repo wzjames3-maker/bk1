@@ -37,7 +37,30 @@ export default async function SharePage({ params }: Props) {
     notFound()
   }
 
-  const chapters = (episode.chapters as { title: string; start: number }[]) || []
+  let chapters: { title: string; time?: string; start?: number }[] = []
+  if (Array.isArray(episode.chapters)) {
+    chapters = episode.chapters as { title: string; time?: string; start?: number }[]
+  } else if (typeof episode.chapters === 'string') {
+    try { chapters = JSON.parse(episode.chapters) } catch { /* ignore */ }
+  }
+
+  // 解析 show_notes（可能是 JSON 字符串）
+  let showNotesText = ''
+  if (episode.show_notes) {
+    try {
+      const parsed = JSON.parse(episode.show_notes)
+      if (parsed.summary) {
+        showNotesText = parsed.summary
+        if (Array.isArray(parsed.highlights)) {
+          showNotesText += '\n\n亮点：\n' + parsed.highlights.map((h: string) => `• ${h}`).join('\n')
+        }
+      } else {
+        showNotesText = episode.show_notes
+      }
+    } catch {
+      showNotesText = episode.show_notes
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -61,7 +84,7 @@ export default async function SharePage({ params }: Props) {
               {chapters.map((ch, i) => (
                 <li key={i} className="flex items-center gap-2 text-sm">
                   <span className="w-12 shrink-0 text-muted-foreground">
-                    {Math.floor(ch.start / 60)}:{String(Math.floor(ch.start % 60)).padStart(2, '0')}
+                    {ch.time || (ch.start != null ? `${Math.floor(ch.start / 60)}:${String(Math.floor(ch.start % 60)).padStart(2, '0')}` : '')}
                   </span>
                   <span>{ch.title}</span>
                 </li>
@@ -70,11 +93,11 @@ export default async function SharePage({ params }: Props) {
           </div>
         )}
 
-        {episode.show_notes && (
+        {showNotesText && (
           <div className="mt-8">
             <h2 className="mb-3 text-lg font-semibold">节目笔记</h2>
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-              {episode.show_notes}
+              {showNotesText}
             </p>
           </div>
         )}
