@@ -209,6 +209,11 @@ export default async function ProjectsPage() {
                         </Link>
                       ))
                     )}
+                    {count > 5 && (
+                      <Link href="/episodes" className="block px-2 py-1 text-sm text-primary hover:underline">
+                        查看全部 {count} 期 →
+                      </Link>
+                    )}
                     <div className="pt-2">
                       <Link href={`/create`}>
                         <Button variant="outline" size="sm">在此系列下创建</Button>
