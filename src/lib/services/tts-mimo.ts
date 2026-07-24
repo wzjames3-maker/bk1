@@ -36,7 +36,6 @@ function getBaseUrl() {
 }
 
 function getModel() {
-  // 预置精品音色走 mimo-v2.5-tts；voicedesign 用于文本设计音色
   return process.env.MIMO_TTS_MODEL || 'mimo-v2.5-tts'
 }
 
@@ -54,16 +53,36 @@ async function resolveDurationMs(audioBuffer: Buffer, format: string) {
   }
 }
 
+function buildMessages(
+  model: string,
+  text: string,
+  voiceId: string,
+  styleInstruction?: string
+): Array<{ role: string; content: string }> {
+  const isVoiceDesign = model.includes('voicedesign')
+
+  if (isVoiceDesign) {
+    return [
+      { role: 'user', content: styleInstruction || voiceId },
+      { role: 'assistant', content: text },
+    ]
+  }
+
+  const messages: Array<{ role: string; content: string }> = []
+  if (styleInstruction) {
+    messages.push({ role: 'user', content: styleInstruction })
+  }
+  messages.push({ role: 'assistant', content: text })
+  return messages
+}
+
 export async function synthesizeMimo(options: TtsOptions): Promise<TtsResult> {
-  const {
-    text,
-    voiceId,
-    styleInstruction = '自然口语、清晰、适合播客对谈，语速适中。',
-  } = options
+  const { text, voiceId, styleInstruction } = options
 
   const baseUrl = getBaseUrl()
   const model = getModel()
   const format = process.env.MIMO_TTS_FORMAT || 'mp3'
+  const isVoiceDesign = model.includes('voicedesign')
   let lastError: Error | null = null
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
@@ -71,25 +90,9 @@ export async function synthesizeMimo(options: TtsOptions): Promise<TtsResult> {
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), Math.max(EXTERNAL_TIMEOUT_MS, 120000))
 
-      // 官方约定：
-      // - 合成文本必须放在 assistant
-      // - user 放风格指令（voicedesign 时则为音色描述）
-      // - audio.voice 放预置音色 ID（如 冰糖 / 茉莉 / mimo_default）
-      const isVoiceDesign = model.includes('voicedesign')
       const body = {
         model,
-        messages: [
-          {
-            role: 'user',
-            content: isVoiceDesign
-              ? (styleInstruction || `使用音色：${voiceId}`)
-              : styleInstruction,
-          },
-          {
-            role: 'assistant',
-            content: text,
-          },
-        ],
+        messages: buildMessages(model, text, voiceId, styleInstruction),
         audio: isVoiceDesign
           ? { format }
           : { format, voice: voiceId || 'mimo_default' },

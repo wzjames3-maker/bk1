@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { synthesizeSegment } from '@/lib/services/tts-router'
+import { getTtsInstruction } from '@/lib/services/style-presets'
 import type { ScriptSegment } from '@/types/database'
 import type { TtsSegmentResult } from '@/types/pipeline'
 
@@ -20,8 +21,9 @@ export async function executeTtsStep(episodeId: string, userId: string): Promise
 
   if (!script || script.length === 0) throw new Error('No script found')
 
-  const params = episode.params as { voice_ids: string[]; roles_count: number }
+  const params = episode.params as { voice_ids: string[]; roles_count: number; style?: string }
   const voiceIds = params.voice_ids || []
+  const styleInstruction = getTtsInstruction(params.style || 'casual')
 
   // 角色名 → voice_id 映射（按出场顺序分配）
   const roleNames = [...new Set(script.map(s => s.role))]
@@ -40,7 +42,7 @@ export async function executeTtsStep(episodeId: string, userId: string): Promise
 
     if (!voiceId) throw new Error(`No voice assigned to role: ${segment.role}`)
 
-    const { audioBuffer, durationMs } = await synthesizeSegment(segment.text, voiceId)
+    const { audioBuffer, durationMs } = await synthesizeSegment(segment.text, voiceId, styleInstruction)
 
     // 上传到 Supabase Storage
     const path = `${userId}/episodes/${episodeId}/segment-${String(i).padStart(3, '0')}.mp3`

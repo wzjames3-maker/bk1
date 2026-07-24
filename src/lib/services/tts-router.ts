@@ -8,7 +8,8 @@ interface TtsResult {
 
 export async function synthesizeSegment(
   text: string,
-  voiceDbId: string
+  voiceDbId: string,
+  styleInstruction?: string
 ): Promise<TtsResult> {
   const supabase = createAdminClient()
 
@@ -21,7 +22,7 @@ export async function synthesizeSegment(
   if (!voice) throw new Error(`Voice not found: ${voiceDbId}`)
 
   if (voice.provider === 'mimo') {
-    return synthesizeMimo({ text, voiceId: voice.provider_voice_id })
+    return synthesizeMimo({ text, voiceId: voice.provider_voice_id, styleInstruction })
   }
 
   throw new Error(`Unknown TTS provider: ${voice.provider}`)
