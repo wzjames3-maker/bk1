@@ -95,8 +95,8 @@ export function EpisodeList() {
     }
   }
 
-  const fetchEpisodes = useCallback(async () => {
-    setLoading(true)
+  const fetchEpisodes = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(page) })
       if (filter !== 'all') params.set('status', filter)
@@ -114,14 +114,14 @@ export function EpisodeList() {
   }, [filter, page, search])
 
   useEffect(() => {
-    fetchEpisodes()
+    fetchEpisodes(false)
   }, [fetchEpisodes])
 
-  // 有进行中的节目时自动刷新（5s 轮询）
+  // 有进行中的节目时自动刷新（5s 静默轮询，不触发 skeleton）
   const hasProcessing = episodes.some(ep => !['completed', 'failed'].includes(ep.status))
   useEffect(() => {
     if (!hasProcessing) return
-    const timer = setInterval(() => fetchEpisodes(), 5000)
+    const timer = setInterval(() => fetchEpisodes(true), 5000)
     return () => clearInterval(timer)
   }, [hasProcessing, fetchEpisodes])
 

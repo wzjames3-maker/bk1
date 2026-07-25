@@ -19,6 +19,7 @@ export function CreateWizard() {
   const [submitting, setSubmitting] = useState(false)
 
   // Step 1 数据
+  const [title, setTitle] = useState('')
   const [topic, setTopic] = useState('')
   const [materials, setMaterials] = useState<MaterialItem[]>([])
   const [mode, setMode] = useState<'ai' | 'script'>('ai')
@@ -82,6 +83,7 @@ export function CreateWizard() {
 
   const canNext = () => {
     if (step === 0) {
+      if (!title.trim()) return false
       if (mode === 'script') return segments.length > 0
       return topic.trim().length > 0
     }
@@ -96,6 +98,9 @@ export function CreateWizard() {
 
   const validationHint = (): string | null => {
     if (step === 0) {
+      if (!title.trim()) {
+        return '请输入节目名称'
+      }
       if (mode === 'script' && segments.length === 0) {
         return '请输入或上传脚本内容'
       }
@@ -127,7 +132,8 @@ export function CreateWizard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topic: mode === 'script' ? (topic.trim() || '用户脚本') : topic,
+          title: title.trim(),
+          topic: mode === 'script' ? (topic.trim() || title.trim() || '用户脚本') : topic,
           materials: mode === 'ai' ? materials.map(m => ({
             type: m.type,
             url: m.url || m.path || '',
@@ -185,6 +191,8 @@ export function CreateWizard() {
       {/* 步骤内容（用 CSS 隐藏而非卸载，保留各步骤内部状态） */}
       <div className={step === 0 ? '' : 'hidden'}>
         <StepMaterials
+          title={title}
+          onTitleChange={setTitle}
           topic={topic}
           onTopicChange={setTopic}
           materials={materials}
@@ -212,6 +220,7 @@ export function CreateWizard() {
       </div>
       <div className={step === 2 ? '' : 'hidden'}>
         <StepConfirm
+          title={title}
           topic={topic}
           materials={materials}
           params={params}
