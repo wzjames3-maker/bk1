@@ -182,8 +182,8 @@ export function CreateWizard() {
         ))}
       </div>
 
-      {/* 步骤内容 */}
-      {step === 0 && (
+      {/* 步骤内容（用 CSS 隐藏而非卸载，保留各步骤内部状态） */}
+      <div className={step === 0 ? '' : 'hidden'}>
         <StepMaterials
           topic={topic}
           onTopicChange={setTopic}
@@ -196,9 +196,10 @@ export function CreateWizard() {
           polishEnabled={polishEnabled}
           onPolishChange={setPolishEnabled}
         />
-      )}
-      {step === 1 && (
+      </div>
+      <div className={step === 1 ? '' : 'hidden'}>
         <StepParams
+          active={step >= 1}
           params={params}
           projectId={projectId}
           onProjectIdChange={setProjectId}
@@ -208,8 +209,8 @@ export function CreateWizard() {
           }}
           scriptRoles={mode === 'script' ? [...new Set(segments.map(s => s.role))] : undefined}
         />
-      )}
-      {step === 2 && (
+      </div>
+      <div className={step === 2 ? '' : 'hidden'}>
         <StepConfirm
           topic={topic}
           materials={materials}
@@ -218,7 +219,7 @@ export function CreateWizard() {
           balance={balance}
           estimateLoading={estimateLoading}
         />
-      )}
+      </div>
 
       {/* 导航按钮 */}
       <div className="space-y-2">

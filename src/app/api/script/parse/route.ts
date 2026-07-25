@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse, after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import OpenAI from 'openai'
 import type { ScriptSegment } from '@/types/database'
@@ -8,7 +8,7 @@ import { logLlmUsage } from '@/lib/services/usage-logger'
 const client = new OpenAI({
   apiKey: process.env.DEEPSEEK_API_KEY!,
   baseURL: process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com',
-  timeout: 60000,
+  timeout: 25000,
 })
 
 const MODEL = process.env.DEEPSEEK_MODEL || 'deepseek-chat'
@@ -96,10 +96,13 @@ export async function POST(request: NextRequest) {
 
   const MAX_RETRIES = 2
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    // 客户端已断开则停止重试，避免浪费 LLM token
+    if (request.signal.aborted) break
     try {
       const result = await llmParse(rawText, attempt === 2)
       if (result && result.segments.length > 0) {
-        await logLlmUsage(user.id, result.usage.prompt, result.usage.completion)
+        // 使用 after() 保证 Serverless 环境下响应后仍执行计费日志
+        after(() => logLlmUsage(user.id, result.usage.prompt, result.usage.completion))
         return NextResponse.json({ segments: result.segments, attempt })
       }
     } catch (err) {

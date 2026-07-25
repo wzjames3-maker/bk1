@@ -23,6 +23,8 @@ interface Props {
   projectId: string | null
   onProjectIdChange: (id: string | null) => void
   scriptRoles?: string[]
+  /** 步骤是否已激活（用于守卫 mount-time 副作用） */
+  active?: boolean
 }
 
 const STYLES = [
@@ -39,7 +41,7 @@ const BGM_OPTIONS = [
   { value: 'tech', label: '科技感' },
 ]
 
-export function StepParams({ params, onChange, projectId, onProjectIdChange, scriptRoles }: Props) {
+export function StepParams({ params, onChange, projectId, onProjectIdChange, scriptRoles, active = true }: Props) {
   const [projects, setProjects] = useState<Array<{ id: string; name: string }>>([])
   const [voices, setVoices] = useState<Voice[]>([])
   const [voiceMapping, setVoiceMapping] = useState<Record<string, string>>({})
@@ -47,6 +49,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
   const [playingVoice, setPlayingVoice] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!active) return
     fetch('/api/projects')
       .then(r => r.json())
       .then((list) => {
@@ -55,32 +58,32 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
         if (!projectId && list[0]?.id) onProjectIdChange(list[0].id)
       })
       .catch(console.error)
-    // 仅挂载时拉取项目列表
+    // 仅步骤激活时拉取项目列表
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [active])
 
   // 获取音色列表（脚本模式下用于下拉选择）
   const rolesKey = scriptRoles?.join(',') || ''
   useEffect(() => {
-    if (!rolesKey) return
+    if (!active || !rolesKey) return
     fetch('/api/voices')
       .then(res => res.json())
       .then(setVoices)
       .catch(console.error)
-  }, [rolesKey])
+  }, [active, rolesKey])
 
   // 脚本模式：自动设置 roles_count
   useEffect(() => {
-    if (!scriptRoles || scriptRoles.length === 0) return
+    if (!active || !scriptRoles || scriptRoles.length === 0) return
     if (params.roles_count !== scriptRoles.length) {
       onChange({ ...params, roles_count: scriptRoles.length })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rolesKey])
+  }, [active, rolesKey])
 
   // 脚本模式：调用 LLM 音色匹配（仅一次）
   useEffect(() => {
-    if (!scriptRoles || scriptRoles.length === 0) return
+    if (!active || !scriptRoles || scriptRoles.length === 0) return
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMatching(true)
     fetch('/api/voices/match', {
@@ -99,7 +102,7 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
       .catch(console.error)
       .finally(() => setMatching(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rolesKey])
+  }, [active, rolesKey])
 
   const update = (partial: Partial<EpisodeParams>) => {
     const next = { ...params, ...partial }
@@ -223,26 +226,18 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
                     size="sm"
                     variant="ghost"
                     className="h-8 w-8 p-0"
-                    disabled={!voiceMapping[role] || playingVoice === role}
-                    onClick={async (e) => {
+                    disabled={!voiceMapping[role] || playingVoice === role || !voices.find(v => v.id === voiceMapping[role])?.sample_url}
+                    onClick={(e) => {
                       e.stopPropagation()
                       const voiceId = voiceMapping[role]
                       if (!voiceId) return
+                      const voice = voices.find(v => v.id === voiceId)
+                      if (!voice?.sample_url) return
                       setPlayingVoice(role)
-                      try {
-                        const res = await fetch(`/api/voices/${voiceId}/sample`, { method: 'POST' })
-                        const data = await res.json()
-                        if (data.sample_url) {
-                          const audio = new Audio(data.sample_url)
-                          audio.onended = () => setPlayingVoice(null)
-                          audio.onerror = () => setPlayingVoice(null)
-                          audio.play().catch(() => setPlayingVoice(null))
-                        } else {
-                          setPlayingVoice(null)
-                        }
-                      } catch {
-                        setPlayingVoice(null)
-                      }
+                      const audio = new Audio(voice.sample_url)
+                      audio.onended = () => setPlayingVoice(null)
+                      audio.onerror = () => setPlayingVoice(null)
+                      audio.play().catch(() => setPlayingVoice(null))
                     }}
                   >
                     {playingVoice === role ? '⏳' : '▶️'}
@@ -262,11 +257,13 @@ export function StepParams({ params, onChange, projectId, onProjectIdChange, scr
                 请选满 {params.roles_count} 个音色（已选 {params.voice_ids.length}）
               </p>
             )}
-            <VoicePicker
-              selected={params.voice_ids}
-              onChange={(ids) => update({ voice_ids: ids })}
-              maxCount={params.roles_count}
-            />
+            {active && (
+              <VoicePicker
+                selected={params.voice_ids}
+                onChange={(ids) => update({ voice_ids: ids })}
+                maxCount={params.roles_count}
+              />
+            )}
           </>
         )}
       </div>

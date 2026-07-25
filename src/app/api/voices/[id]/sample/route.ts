@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { synthesizeMimo } from '@/lib/services/tts-mimo'
 
-const SAMPLE_TEXT = '你好，欢迎收听我们的播客节目，今天我们来聊一个有趣的话题。'
-
-export async function POST(
-  request: NextRequest,
+/**
+ * 获取音色试听样本 URL（仅返回预合成缓存，不现场合成）
+ * 试听样本应通过 /api/voices/pre-generate-samples 提前批量生成
+ */
+export async function GET(
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
@@ -18,36 +19,15 @@ export async function POST(
 
   const { data: voice } = await admin
     .from('voices')
-    .select('*')
+    .select('sample_url')
     .eq('id', id)
     .single()
 
   if (!voice) return NextResponse.json({ error: '音色不存在' }, { status: 404 })
 
-  if (voice.sample_url) {
-    return NextResponse.json({ sample_url: voice.sample_url })
+  if (!voice.sample_url) {
+    return NextResponse.json({ error: '试听样本尚未生成，请联系管理员' }, { status: 404 })
   }
 
-  try {
-    const { audioBuffer } = await synthesizeMimo({
-      text: SAMPLE_TEXT,
-      voiceId: voice.provider_voice_id,
-    })
-
-    const path = `voice-samples/${voice.id}.mp3`
-    const { error: uploadErr } = await admin.storage
-      .from('podcast-audio')
-      .upload(path, audioBuffer, { contentType: 'audio/mpeg', upsert: true })
-
-    if (uploadErr) throw uploadErr
-
-    const { data: urlData } = admin.storage.from('podcast-audio').getPublicUrl(path)
-    const sampleUrl = urlData.publicUrl
-
-    await admin.from('voices').update({ sample_url: sampleUrl }).eq('id', voice.id)
-
-    return NextResponse.json({ sample_url: sampleUrl })
-  } catch (e) {
-    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
-  }
+  return NextResponse.json({ sample_url: voice.sample_url })
 }

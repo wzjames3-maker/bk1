@@ -30,11 +30,16 @@ export function ScriptInput({ segments, onSegmentsChange, polishEnabled, onPolis
     setParseError('')
     onSegmentsChange([])
     setParsed(false)
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
+
     try {
       const res = await fetch('/api/script/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rawText: text }),
+        signal: controller.signal,
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || '解析失败')
@@ -44,9 +49,14 @@ export function ScriptInput({ segments, onSegmentsChange, polishEnabled, onPolis
       onSegmentsChange(data.segments)
       setParsed(true)
     } catch (e) {
-      setParseError((e as Error).message)
+      if ((e as Error).name === 'AbortError') {
+        setParseError('解析超时（30s），请精简文本后重试')
+      } else {
+        setParseError((e as Error).message)
+      }
       setParsed(false)
     } finally {
+      clearTimeout(timeout)
       setParsing(false)
     }
   }
@@ -135,7 +145,7 @@ export function ScriptInput({ segments, onSegmentsChange, polishEnabled, onPolis
 
       <div className="flex items-center gap-2">
         <Button variant="outline" size="sm" onClick={handleParse} disabled={!rawText.trim() || parsing || rawText.length < MIN_CHARS || rawText.length > MAX_CHARS}>
-          {parsing ? 'AI 解析中...' : '解析预览'}
+          {parsing ? 'AI 解析中（约 5~15s）...' : '解析预览'}
         </Button>
         <label className="cursor-pointer inline-flex">
           <input type="file" accept=".txt,.docx,.md" className="hidden" onChange={handleFileUpload} />
