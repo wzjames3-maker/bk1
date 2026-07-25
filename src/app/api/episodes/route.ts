@@ -57,6 +57,17 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json()
 
+  // 服务端校验 title：非空、最大 100 字符
+  const rawTitle = body.title
+  if (rawTitle !== undefined && rawTitle !== null) {
+    if (typeof rawTitle !== 'string' || rawTitle.trim().length === 0) {
+      return NextResponse.json({ error: '节目名称不能为空' }, { status: 400 })
+    }
+    if (rawTitle.trim().length > 100) {
+      return NextResponse.json({ error: '节目名称不能超过 100 字' }, { status: 400 })
+    }
+  }
+
   // 服务端独立计算费用，不信任客户端传入的 estimated_cost
   const params = body.params || {}
   const materialCharCount = (body.materials || []).reduce(
@@ -128,7 +139,7 @@ export async function POST(request: NextRequest) {
         status: 'script_ready',
         params: { ...body.params, source: 'user_script' },
         materials: [],
-        title: body.title || body.topic || '用户脚本',
+        title: (typeof body.title === 'string' ? body.title.trim() : null) || body.topic || '用户脚本',
         estimated_cost: estimatedCost || null,
         preview_url: 'pending',
       })
@@ -178,7 +189,7 @@ export async function POST(request: NextRequest) {
       topic: body.topic,
       params: { ...body.params, duration_min: durationMin, roles_count: rolesCount },
       materials: body.materials,
-      title: body.title || body.topic || null,
+      title: (typeof body.title === 'string' ? body.title.trim() : null) || body.topic || null,
       estimated_cost: estimatedCost || null,
     })
     .select()
