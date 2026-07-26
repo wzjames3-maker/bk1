@@ -10,12 +10,16 @@ create table profiles (
   created_at timestamptz not null default now()
 );
 
--- 自动创建 profile
+-- 自动创建 profile + 默认项目
 create function public.handle_new_user()
 returns trigger as $$
 begin
   insert into public.profiles (id, name)
   values (new.id, new.raw_user_meta_data->>'name');
+
+  insert into public.projects (user_id, name, description)
+  values (new.id, '默认项目', '注册时自动创建的播客项目');
+
   return new;
 end;
 $$ language plpgsql security definer;

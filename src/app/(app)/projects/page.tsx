@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ProjectActions } from '@/components/projects/project-actions'
+import { Sparkles } from 'lucide-react'
 
 export const dynamic = 'force-dynamic'
 
@@ -79,10 +81,17 @@ async function ensureDefaultProjectAction() {
   revalidatePath('/dashboard')
 }
 
-export default async function ProjectsPage() {
+export default async function ProjectsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>
+}) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
+
+  const { q } = await searchParams
+  const keyword = q?.trim() || ''
 
   const [{ data: projects }, { data: episodes }] = await Promise.all([
     supabase
@@ -97,8 +106,20 @@ export default async function ProjectsPage() {
       .order('created_at', { ascending: false }),
   ])
 
-  const allProjects = projects || []
-  const allEpisodes = episodes || []
+  let allProjects = projects || []
+  let allEpisodes = episodes || []
+
+  // 模糊搜索：同时过滤项目和节目
+  if (keyword) {
+    const kw = keyword.toLowerCase()
+    allProjects = allProjects.filter(
+      p => p.name.toLowerCase().includes(kw) || (p.description || '').toLowerCase().includes(kw)
+    )
+    allEpisodes = allEpisodes.filter(
+      ep => (ep.title || '').toLowerCase().includes(kw) || ep.topic.toLowerCase().includes(kw)
+    )
+  }
+
   const unassigned = allEpisodes.filter(ep => !ep.project_id)
 
   const episodeCountByProject = allEpisodes.reduce<Record<string, number>>((acc, ep) => {
@@ -115,9 +136,25 @@ export default async function ProjectsPage() {
           <p className="text-muted-foreground">按项目归集节目，方便管理系列内容</p>
         </div>
         <Link href="/create">
-          <Button size="lg">✨ 创建新节目</Button>
+          <Button size="lg"><Sparkles className="size-4" /> 创建新节目</Button>
         </Link>
       </div>
+
+      {/* 搜索栏 */}
+      <form method="GET" action="/projects" className="flex gap-2">
+        <Input
+          name="q"
+          placeholder="搜索项目或节目..."
+          defaultValue={keyword}
+          className="max-w-xs"
+        />
+        <Button type="submit" variant="outline">搜索</Button>
+        {keyword && (
+          <Link href="/projects">
+            <Button type="button" variant="ghost">清除</Button>
+          </Link>
+        )}
+      </form>
 
       <Card>
         <CardHeader className="pb-2">
@@ -189,10 +226,20 @@ export default async function ProjectsPage() {
               return (
                 <Card key={project.id}>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {project.description || '暂无简介'} · {count} 期节目
-                    </p>
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <CardTitle className="text-lg">{project.name}</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          {project.description || '暂无简介'} · {count} 期节目
+                        </p>
+                      </div>
+                      <ProjectActions
+                        projectId={project.id}
+                        projectName={project.name}
+                        projectDescription={project.description}
+                        episodeCount={count}
+                      />
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {projectEpisodes.length === 0 ? (
@@ -208,6 +255,11 @@ export default async function ProjectsPage() {
                           </div>
                         </Link>
                       ))
+                    )}
+                    {count > 5 && (
+                      <Link href="/episodes" className="block px-2 py-1 text-sm text-primary hover:underline">
+                        查看全部 {count} 期 →
+                      </Link>
                     )}
                     <div className="pt-2">
                       <Link href={`/create`}>

@@ -8,6 +8,8 @@ import { ScriptInput } from './script-input'
 import type { ScriptSegment } from '@/types/database'
 
 interface Props {
+  title: string
+  onTitleChange: (title: string) => void
   topic: string
   onTopicChange: (topic: string) => void
   materials: MaterialItem[]
@@ -20,9 +22,24 @@ interface Props {
   onPolishChange: (v: boolean) => void
 }
 
-export function StepMaterials({ topic, onTopicChange, materials, onMaterialsChange, mode, onModeChange, segments, onSegmentsChange, polishEnabled, onPolishChange }: Props) {
+export function StepMaterials({ title, onTitleChange, topic, onTopicChange, materials, onMaterialsChange, mode, onModeChange, segments, onSegmentsChange, polishEnabled, onPolishChange }: Props) {
   return (
     <div className="space-y-6">
+      {/* 节目名称（始终显示，两种模式都需要） */}
+      <div className="space-y-2">
+        <Label htmlFor="episode-title" className="text-base">节目名称 *</Label>
+        <Input
+          id="episode-title"
+          placeholder="例如：AI Agent 深度解析 第3期"
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          maxLength={100}
+        />
+        <p className="text-sm text-muted-foreground">
+          给你的播客起一个名字，方便后续查找和管理
+        </p>
+      </div>
+
       <div className="flex gap-2 mb-6">
         <Button
           variant={mode === 'ai' ? 'default' : 'outline'}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -10,7 +11,9 @@ import { AudioPlayer } from './audio-player'
 import { ScriptViewer } from './script-viewer'
 import { ScriptEditor } from './script-editor'
 import { ShowNotes } from './show-notes'
+import { DeleteDialog } from '@/components/episodes/delete-dialog'
 import { useEpisodeRealtime } from '@/lib/hooks/use-episode-realtime'
+import { RefreshCw, Link2 } from 'lucide-react'
 import type { Episode, EpisodeStep, ScriptSegment } from '@/types/database'
 
 interface Props {
@@ -76,6 +79,41 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
   const canEdit = episode.status === 'script_ready'
   const canConfirm = episode.status === 'script_ready'
   const canRetry = episode.status === 'failed'
+  const canRegenerate = episode.status === 'completed' || episode.status === 'failed'
+  const [regenerating, setRegenerating] = useState(false)
+  const [shareLoading, setShareLoading] = useState(false)
+
+  const handleShare = async () => {
+    setShareLoading(true)
+    try {
+      const res = await fetch(`/api/episodes/${episode.id}/share`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '生成链接失败')
+      const url = `${window.location.origin}/share/${data.share_token}`
+      await navigator.clipboard.writeText(url)
+      toast.success('分享链接已复制到剪贴板')
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setShareLoading(false)
+    }
+  }
+
+  const handleRegenerate = async () => {
+    setRegenerating(true)
+    try {
+      const res = await fetch(`/api/episodes/${episode.id}/regenerate`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || '重新生成失败')
+      toast.success('已开始重新生成')
+      router.push(`/episodes/${data.id}`)
+    } catch (e) {
+      toast.error((e as Error).message)
+    } finally {
+      setRegenerating(false)
+    }
+  }
+
   const rewriteCount =
     rewriteCountLocal ?? Number(episode.params?.rewrite_count || 0)
   const rewriteDisabled = rewriting || rewriteCount >= REWRITE_LIMIT
@@ -89,7 +127,7 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
       }
       router.refresh()
     } catch (e) {
-      alert((e as Error).message)
+      toast.error((e as Error).message)
     }
   }
 
@@ -106,11 +144,12 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
     })
     if (!res.ok) {
       const data = await res.json().catch(() => ({}))
-      alert(data.error || '保存失败')
+      toast.error(data.error || '保存失败')
       return
     }
     setScriptOverride(newScript)
     setEditing(false)
+    toast.success('脚本已保存')
     router.refresh()
   }
 
@@ -127,9 +166,10 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
       setScriptOverride(data.script)
       setRewriteCountLocal(data.rewrite_count)
       setEditing(true)
+      toast.success('AI 润色完成')
       router.refresh()
     } catch (e) {
-      alert((e as Error).message)
+      toast.error((e as Error).message)
     } finally {
       setRewriting(false)
     }
@@ -167,6 +207,20 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
           {canRetry && (
             <Button variant="outline" onClick={handleRetry}>重试</Button>
           )}
+          {canRegenerate && (
+            <Button variant="outline" onClick={handleRegenerate} disabled={regenerating}>
+              {regenerating ? '生成中...' : <><RefreshCw className="size-4" /> 重新生成</>}
+            </Button>
+          )}
+          {episode.status === 'completed' && (
+            <Button size="sm" variant="outline" onClick={handleShare} disabled={shareLoading}>
+              {shareLoading ? '生成中...' : <><Link2 className="size-4" /> 分享</>}
+            </Button>
+          )}
+          <DeleteDialog
+            episodeId={episode.id}
+            episodeTitle={episode.title || episode.topic || '未命名节目'}
+          />
         </div>
       </div>
 
@@ -175,6 +229,7 @@ function EpisodeDetailInner({ initialEpisode, initialSteps }: Props) {
         previewUrl={episode.preview_url}
         chapters={chapters}
         status={episode.status}
+        title={episode.title || episode.topic}
       />
 
       <Tabs defaultValue="progress">

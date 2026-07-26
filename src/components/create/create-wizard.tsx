@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { StepMaterials } from './step-materials'
@@ -18,6 +19,7 @@ export function CreateWizard() {
   const [submitting, setSubmitting] = useState(false)
 
   // Step 1 数据
+  const [title, setTitle] = useState('')
   const [topic, setTopic] = useState('')
   const [materials, setMaterials] = useState<MaterialItem[]>([])
   const [mode, setMode] = useState<'ai' | 'script'>('ai')
@@ -81,6 +83,7 @@ export function CreateWizard() {
 
   const canNext = () => {
     if (step === 0) {
+      if (!title.trim()) return false
       if (mode === 'script') return segments.length > 0
       return topic.trim().length > 0
     }
@@ -93,6 +96,35 @@ export function CreateWizard() {
     return true
   }
 
+  const validationHint = (): string | null => {
+    if (step === 0) {
+      if (!title.trim()) {
+        return '请输入节目名称'
+      }
+      if (mode === 'script' && segments.length === 0) {
+        return '请输入或上传脚本内容'
+      }
+      if (mode === 'ai' && !topic.trim()) {
+        return '请输入播客话题'
+      }
+    }
+    if (step === 1) {
+      if (params.voice_ids.length === 0) {
+        return '请为所有角色选择音色'
+      }
+      if (params.voice_ids.length < params.roles_count) {
+        return `还需为 ${params.roles_count - params.voice_ids.length} 个角色选择音色`
+      }
+    }
+    if (step === 2) {
+      if (!estimate) return '正在计算费用...'
+      if (balance < (estimate?.total || 0)) {
+        return `余额不足（需 $${estimate.total.toFixed(4)}，当前 $${balance.toFixed(4)}）`
+      }
+    }
+    return null
+  }
+
   const handleSubmit = async () => {
     setSubmitting(true)
     try {
@@ -100,11 +132,14 @@ export function CreateWizard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          topic: mode === 'script' ? (topic.trim() || '用户脚本') : topic,
+          title: title.trim(),
+          topic: mode === 'script' ? (topic.trim() || title.trim() || '用户脚本') : topic,
           materials: mode === 'ai' ? materials.map(m => ({
             type: m.type,
             url: m.url || m.path || '',
             text: m.text,
+            name: m.name,
+            content_type: m.content_type,
           })) : [],
           script: mode === 'script' ? segments : undefined,
           params: {
@@ -128,7 +163,7 @@ export function CreateWizard() {
       router.push(`/episodes/${data.id}`)
       router.refresh()
     } catch (err) {
-      alert((err as Error).message)
+      toast.error((err as Error).message)
       setSubmitting(false)
     }
   }
@@ -153,9 +188,11 @@ export function CreateWizard() {
         ))}
       </div>
 
-      {/* 步骤内容 */}
-      {step === 0 && (
+      {/* 步骤内容（用 CSS 隐藏而非卸载，保留各步骤内部状态） */}
+      <div className={step === 0 ? '' : 'hidden'}>
         <StepMaterials
+          title={title}
+          onTitleChange={setTitle}
           topic={topic}
           onTopicChange={setTopic}
           materials={materials}
@@ -167,9 +204,10 @@ export function CreateWizard() {
           polishEnabled={polishEnabled}
           onPolishChange={setPolishEnabled}
         />
-      )}
-      {step === 1 && (
+      </div>
+      <div className={step === 1 ? '' : 'hidden'}>
         <StepParams
+          active={step >= 1}
           params={params}
           projectId={projectId}
           onProjectIdChange={setProjectId}
@@ -179,9 +217,10 @@ export function CreateWizard() {
           }}
           scriptRoles={mode === 'script' ? [...new Set(segments.map(s => s.role))] : undefined}
         />
-      )}
-      {step === 2 && (
+      </div>
+      <div className={step === 2 ? '' : 'hidden'}>
         <StepConfirm
+          title={title}
           topic={topic}
           materials={materials}
           params={params}
@@ -189,31 +228,36 @@ export function CreateWizard() {
           balance={balance}
           estimateLoading={estimateLoading}
         />
-      )}
+      </div>
 
       {/* 导航按钮 */}
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={step === 0}>
-          上一步
-        </Button>
-        {step < 2 ? (
-          <Button
-            onClick={() => {
-              if (step === 1) setEstimateLoading(true)
-              setStep(s => s + 1)
-            }}
-            disabled={!canNext()}
-          >
-            下一步
-          </Button>
-        ) : (
-          <Button
-            onClick={handleSubmit}
-            disabled={submitting || !estimate || balance < (estimate?.total || 0)}
-          >
-            {submitting ? '创建中...' : `确认生成（$${estimate?.total?.toFixed(4) || '...'}）`}
-          </Button>
+      <div className="space-y-2">
+        {validationHint() && (
+          <p className="text-right text-sm text-destructive">{validationHint()}</p>
         )}
+        <div className="flex justify-between">
+          <Button variant="outline" onClick={() => setStep(s => s - 1)} disabled={step === 0}>
+            上一步
+          </Button>
+          {step < 2 ? (
+            <Button
+              onClick={() => {
+                if (step === 1) setEstimateLoading(true)
+                setStep(s => s + 1)
+              }}
+              disabled={!canNext()}
+            >
+              下一步
+            </Button>
+          ) : (
+            <Button
+              onClick={handleSubmit}
+              disabled={submitting || !estimate || balance < (estimate?.total || 0)}
+            >
+              {submitting ? '创建中...' : `确认生成（$${estimate?.total?.toFixed(4) || '...'}）`}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )

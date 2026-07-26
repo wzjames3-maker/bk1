@@ -64,6 +64,7 @@ export async function settle(
 
 /**
  * 全额退还（episode 失败时调用，幂等：只退一次）
+ * 使用原子条件 UPDATE 防止并发重复退款
  */
 export async function refund(
   userId: string,
@@ -72,18 +73,20 @@ export async function refund(
 ): Promise<void> {
   const admin = createAdminClient()
 
-  // 幂等检查：已退款则跳过
-  const { data: ep } = await admin
+  // 原子标记：仅当 refunded_at 为 NULL 时才更新，利用行锁保证幂等
+  const { data: marked } = await admin
     .from('episodes')
-    .select('refunded_at')
+    .update({ refunded_at: new Date().toISOString() })
     .eq('id', episodeId)
-    .single()
+    .is('refunded_at', null)
+    .select('id')
 
-  if (ep?.refunded_at) {
+  if (!marked || marked.length === 0) {
     console.log(`[billing] episode ${episodeId} already refunded, skipping`)
     return
   }
 
+  // 标记成功后再执行退款
   await admin.rpc('adjust_balance', { uid: userId, delta: amount })
 
   await admin.from('transactions').insert({
@@ -92,12 +95,6 @@ export async function refund(
     amount: amount,
     description: `失败退还：${episodeId}`,
   })
-
-  // 标记已退款
-  await admin
-    .from('episodes')
-    .update({ refunded_at: new Date().toISOString() })
-    .eq('id', episodeId)
 }
 
 /**

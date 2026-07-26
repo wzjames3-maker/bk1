@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Headphones } from 'lucide-react'
 
 export function AuthForm() {
   const [email, setEmail] = useState('')
@@ -57,7 +58,7 @@ export function AuthForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">🎧 PodCast AI</CardTitle>
+        <CardTitle className="flex items-center justify-center gap-2 text-2xl"><Headphones className="size-6" /> PodCast AI</CardTitle>
         <CardDescription>自动化播客生产平台</CardDescription>
       </CardHeader>
       <CardContent>

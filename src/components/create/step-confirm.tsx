@@ -6,6 +6,7 @@ import type { MaterialItem } from './material-uploader'
 import type { EpisodeParams } from './step-params'
 
 interface Props {
+  title: string
   topic: string
   materials: MaterialItem[]
   params: EpisodeParams
@@ -24,7 +25,7 @@ const STYLE_LABELS: Record<string, string> = {
   casual: '轻松闲聊', deep: '深度对谈', news: '新闻播报', story: '故事叙述',
 }
 
-export function StepConfirm({ topic, materials, params, estimate, balance, estimateLoading }: Props) {
+export function StepConfirm({ title, topic, materials, params, estimate, balance, estimateLoading }: Props) {
   return (
     <div className="space-y-6">
       <Card>
@@ -32,6 +33,10 @@ export function StepConfirm({ topic, materials, params, estimate, balance, estim
           <CardTitle className="text-base">节目概要</CardTitle>
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">节目名称</span>
+            <span className="font-medium">{title}</span>
+          </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">话题</span>
             <span>{topic}</span>

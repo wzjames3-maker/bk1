@@ -9,19 +9,45 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = new URL(request.url)
-  const projectId = searchParams.get('project_id')
+  const status = searchParams.get('status')
+  const q = searchParams.get('q')?.trim()
+  const page = Math.max(1, Number(searchParams.get('page')) || 1)
+  const pageSize = 20
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
 
   let query = supabase
     .from('episodes')
-    .select('*')
+    .select('id, title, topic, status, created_at, audio_url, estimated_cost, completed_at', { count: 'exact' })
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
+    .range(from, to)
 
-  if (projectId) query = query.eq('project_id', projectId)
+  if (q) {
+    // 转义 PostgREST 特殊字符防止过滤器注入
+    const escaped = q.replace(/[,()\\%]/g, '\\$&')
+    query = query.or(`title.ilike.%${escaped}%,topic.ilike.%${escaped}%`)
+  }
 
-  const { data, error } = await query
+  if (status === 'completed') {
+    query = query.eq('status', 'completed')
+  } else if (status === 'failed') {
+    query = query.eq('status', 'failed')
+  } else if (status === 'processing') {
+    query = query.in('status', ['pending', 'parsing', 'scripting', 'confirming', 'tts_processing', 'mixing', 'post_processing'])
+  }
+
+  const { data: episodes, error, count } = await query
+
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+
+  return NextResponse.json({
+    episodes: episodes || [],
+    total: count || 0,
+    page,
+    pageSize,
+    totalPages: Math.ceil((count || 0) / pageSize),
+  })
 }
 
 export async function POST(request: NextRequest) {
@@ -30,6 +56,17 @@ export async function POST(request: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
+
+  // 服务端校验 title：非空、最大 100 字符
+  const rawTitle = body.title
+  if (rawTitle !== undefined && rawTitle !== null) {
+    if (typeof rawTitle !== 'string' || rawTitle.trim().length === 0) {
+      return NextResponse.json({ error: '节目名称不能为空' }, { status: 400 })
+    }
+    if (rawTitle.trim().length > 100) {
+      return NextResponse.json({ error: '节目名称不能超过 100 字' }, { status: 400 })
+    }
+  }
 
   // 服务端独立计算费用，不信任客户端传入的 estimated_cost
   const params = body.params || {}
@@ -102,7 +139,7 @@ export async function POST(request: NextRequest) {
         status: 'script_ready',
         params: { ...body.params, source: 'user_script' },
         materials: [],
-        title: body.title || body.topic || '用户脚本',
+        title: (typeof body.title === 'string' ? body.title.trim() : null) || body.topic || '用户脚本',
         estimated_cost: estimatedCost || null,
         preview_url: 'pending',
       })
@@ -152,7 +189,7 @@ export async function POST(request: NextRequest) {
       topic: body.topic,
       params: { ...body.params, duration_min: durationMin, roles_count: rolesCount },
       materials: body.materials,
-      title: body.title || body.topic || null,
+      title: (typeof body.title === 'string' ? body.title.trim() : null) || body.topic || null,
       estimated_cost: estimatedCost || null,
     })
     .select()

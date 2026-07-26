@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { AppShell } from '@/components/app-shell'
+import { Toaster } from '@/components/ui/sonner'
 
 export default async function AppLayout({
   children,
@@ -14,5 +15,10 @@ export default async function AppLayout({
     redirect('/login')
   }
 
-  return <AppShell>{children}</AppShell>
+  return (
+    <AppShell>
+      {children}
+      <Toaster position="top-center" richColors />
+    </AppShell>
+  )
 }
